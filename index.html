@@ -36,6 +36,17 @@
       margin: 5px 1%;
       font-weight: bold;
     }
+    button.delete-btn {
+      background-color: #d9534f;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+    button.delete-btn:hover {
+      background-color: #c9302c;
+    }
   </style>
 </head>
 <body>
@@ -73,7 +84,6 @@
         <input type="text" id="vin" class="scan-input" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="none" />
         
         <div style="margin-top:10px;">
-          <!-- Skip Slot button removed -->
           <button class="empty" onclick="addEmptySlot()" style="background-color:#5bc0de; color:white;">Add Empty Slot</button>
         </div>
 
@@ -108,6 +118,7 @@
         <th>Slot</th>
         <th>VIN</th>
         <th>Time</th>
+        <th>Delete</th>
       </tr>
     </thead>
     <tbody id="tableBody"></tbody>
@@ -215,11 +226,10 @@
                       '<td>' + record.bay + '</td>' +
                       '<td>' + record.slot + '</td>' +
                       '<td>' + record.vin + '</td>' +
-                      '<td>' + record.time + '</td>';
+                      '<td>' + record.time + '</td>' +
+                      '<td><button class="delete-btn" onclick="deleteRecord(' + record.id + ')">Delete</button></td>';
       tableBody.appendChild(row);
     }
-
-    // Skip slot without adding a record - REMOVED
 
     // Add empty slot record
     function addEmptySlot() {
@@ -317,6 +327,49 @@
       }
 
       alert("CSV exported successfully.");
+    }
+
+    // Delete record function
+    function deleteRecord(id) {
+      var index = records.findIndex(r => r.id === id);
+      if (index === -1) return;
+
+      var deletedRecord = records[index];
+      
+      // Remove record
+      records.splice(index, 1);
+
+      // Rebuild table and reassign IDs
+      rebuildTable();
+
+      if (mode === 'yard') {
+        // Get slots in current yard & bay
+        var slotsInBay = records
+          .filter(r => r.yard === yardName && r.bay === bayName)
+          .map(r => r.slot);
+
+        var maxSlot = slotsInBay.length > 0 ? Math.max(...slotsInBay) : 0;
+
+        // Adjust slotCount
+        if (deletedRecord.slot === slotCount - 1) {
+          slotCount = deletedRecord.slot;
+        } else {
+          slotCount = maxSlot + 1;
+        }
+      }
+
+      vinCount = records.length + 1;
+
+      vinInput.focus();
+    }
+
+    // Rebuild table helper
+    function rebuildTable() {
+      tableBody.innerHTML = "";
+      for (var i = 0; i < records.length; i++) {
+        records[i].id = i + 1;
+        addRowToTable(records[i]);
+      }
     }
 
     // Reset everything - pass true if triggered by reset button, false if from mode change
