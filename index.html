@@ -211,24 +211,37 @@
       };
 
       records.push(record);
-      addRowToTable(record);
+      rebuildTableWithDeleteButton();
 
       slotCount++;
       vinCount++;
       vinInput.focus();
     }
 
-    // Add a row to the HTML table
-    function addRowToTable(record) {
-      var row = document.createElement('tr');
-      row.innerHTML = '<td>' + record.id + '</td>' +
-                      '<td>' + record.yard + '</td>' +
-                      '<td>' + record.bay + '</td>' +
-                      '<td>' + record.slot + '</td>' +
-                      '<td>' + record.vin + '</td>' +
-                      '<td>' + record.time + '</td>' +
-                      '<td><button class="delete-btn" onclick="deleteRecord(' + record.id + ')">Delete</button></td>';
-      tableBody.appendChild(row);
+    // Add a row to the HTML table with delete button only on last record
+    function rebuildTableWithDeleteButton() {
+      tableBody.innerHTML = "";
+
+      records.forEach((record, index) => {
+        var row = document.createElement('tr');
+        var deleteCell = "";
+
+        // Show delete button only for the last record
+        if(index === records.length -1) {
+          deleteCell = `<button class="delete-btn" onclick="deleteRecord(${record.id})">Delete</button>`;
+        }
+
+        row.innerHTML = `<td>${record.id}</td>
+                         <td>${record.yard}</td>
+                         <td>${record.bay}</td>
+                         <td>${record.slot}</td>
+                         <td>${record.vin}</td>
+                         <td>${record.time}</td>
+                         <td>${deleteCell}</td>`;
+
+        tableBody.appendChild(row);
+      });
+      document.getElementById("vinTable").style.display = records.length > 0 ? "table" : "none";
     }
 
     // Add empty slot record
@@ -251,7 +264,7 @@
       };
 
       records.push(record);
-      addRowToTable(record);
+      rebuildTableWithDeleteButton();
 
       slotCount++;
       vinCount++;
@@ -270,7 +283,6 @@
         return;
       }
 
-      // Add new record without clearing previous ones
       var now = new Date();
       var timestamp = now.toLocaleString();
 
@@ -284,16 +296,43 @@
       };
 
       records.push(record);
-      addRowToTable(record);
-      document.getElementById("vinTable").style.display = "table";
-
-      alert("VIN added successfully.");
+      rebuildTableWithDeleteButton();
 
       // Clear inputs after adding
       document.getElementById("indYard").value = "";
       document.getElementById("indBay").value = "";
       document.getElementById("indSlot").value = "";
       document.getElementById("indVin").value = "";
+
+      // Focus the first input for quick entry
+      document.getElementById("indYard").focus();
+    }
+
+    // Delete record function for only last record
+    function deleteRecord(id) {
+      if(records.length === 0) return;
+
+      var lastRecord = records[records.length - 1];
+      if(lastRecord.id !== id) return; // Only allow delete of last record
+
+      var deletedRecord = records.pop();
+
+      // Rebuild table without last record
+      rebuildTableWithDeleteButton();
+
+      if (mode === 'yard') {
+        // Set slotCount to deleted slot, so next scan uses same slot
+        slotCount = deletedRecord.slot;
+      }
+
+      vinCount = records.length + 1;
+
+      if(mode === 'yard') {
+        vinInput.focus();
+      } else if(mode === 'individual') {
+        // Focus first input in individual mode after delete
+        document.getElementById("indYard").focus();
+      }
     }
 
     // Export CSV (works for both modes)
@@ -327,49 +366,6 @@
       }
 
       alert("CSV exported successfully.");
-    }
-
-    // Delete record function
-    function deleteRecord(id) {
-      var index = records.findIndex(r => r.id === id);
-      if (index === -1) return;
-
-      var deletedRecord = records[index];
-      
-      // Remove record
-      records.splice(index, 1);
-
-      // Rebuild table and reassign IDs
-      rebuildTable();
-
-      if (mode === 'yard') {
-        // Get slots in current yard & bay
-        var slotsInBay = records
-          .filter(r => r.yard === yardName && r.bay === bayName)
-          .map(r => r.slot);
-
-        var maxSlot = slotsInBay.length > 0 ? Math.max(...slotsInBay) : 0;
-
-        // Adjust slotCount
-        if (deletedRecord.slot === slotCount - 1) {
-          slotCount = deletedRecord.slot;
-        } else {
-          slotCount = maxSlot + 1;
-        }
-      }
-
-      vinCount = records.length + 1;
-
-      vinInput.focus();
-    }
-
-    // Rebuild table helper
-    function rebuildTable() {
-      tableBody.innerHTML = "";
-      for (var i = 0; i < records.length; i++) {
-        records[i].id = i + 1;
-        addRowToTable(records[i]);
-      }
     }
 
     // Reset everything - pass true if triggered by reset button, false if from mode change
