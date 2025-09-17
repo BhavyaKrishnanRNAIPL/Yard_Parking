@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>VIN Scanner Offline</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      max-width: 600px;
+    }
+
+    input, button {
+      padding: 10px;
+      margin: 5px 0;
+      width: 100%;
+      font-size: 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+
+    .scan-input {
+      font-weight: bold;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>VIN Allocation (Offline)</h2>
+
+  <!-- Yard Input -->
+  <div>
+    <label>Enter Yard Name:</label>
+    <input type="text" id="yard" autocomplete="off" autocorrect="off" spellcheck="false">
+    <button onclick="startScanning()">Start Scanning</button>
+  </div>
+
+  <!-- Bay Input -->
+  <div id="scanSection" style="display:none;">
+    <label>Enter Bay Name:</label>
+    <input type="text" id="bay" autocomplete="off" autocorrect="off" spellcheck="false">
+    <button onclick="setBay()">Set Bay</button>
+
+    <!-- VIN Scan Input -->
+    <div id="vinInputSection" style="display:none;">
+      <label>Scan VIN:</label>
+      <input type="text" id="vin" class="scan-input" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="none">
+      <button onclick="completeScanning()">Complete Scanning & Export</button>
+      <button onclick="resetAll()" style="background-color: red; color: white;">Reset All</button>
+    </div>
+  </div>
+
+  <!-- VIN Table -->
+  <table id="vinTable" style="display:none;">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Yard</th>
+        <th>Bay</th>
+        <th>Slot</th>
+        <th>VIN</th>
+        <th>Time</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+
+  <script>
+    // Declare variables (for older JS compatibility)
+    var yardName = "";
+    var bayName = "";
+    var slotCount = 1;
+    var vinCount = 1;
+    var records = [];
+
+    var yardInput = document.getElementById('yard');
+    var bayInput = document.getElementById('bay');
+    var vinInput = document.getElementById('vin');
+    var tableBody = document.getElementById('tableBody');
+
+    // Start scanning: lock Yard and show Bay section
+    function startScanning() {
+      yardName = yardInput.value;
+      if (!yardName) {
+        alert("Please enter Yard name.");
+        return;
+      }
+      yardInput.disabled = true;
+      document.getElementById('scanSection').style.display = 'block';
+    }
+
+    // Set Bay name and reset slot counter
+    function setBay() {
+      bayName = bayInput.value;
+      if (!bayName) {
+        alert("Please enter Bay name.");
+        return;
+      }
+      slotCount = 1;
+      document.getElementById('vinInputSection').style.display = 'block';
+      document.getElementById('vinTable').style.display = 'table';
+      vinInput.focus();
+    }
+
+    // Handle auto VIN scanning (150ms delay after input)
+    vinInput.oninput = function () {
+      setTimeout(function () {
+        var vin = vinInput.value;
+        if (vin !== "") {
+          addVinRecord(vin);
+          vinInput.value = "";
+        }
+      }, 150);
+    };
+
+    // Add VIN entry
+    function addVinRecord(vin) {
+      var now = new Date();
+      var timestamp = now.toLocaleString();
+
+      var record = {
+        id: vinCount,
+        yard: yardName,
+        bay: bayName,
+        slot: slotCount,
+        vin: vin,
+        time: timestamp
+      };
+
+      records.push(record);
+      addRowToTable(record);
+
+      slotCount++;
+      vinCount++;
+      vinInput.focus();
+    }
+
+    // Add row to HTML table
+    function addRowToTable(record) {
+      var row = document.createElement('tr');
+      row.innerHTML = '<td>' + record.id + '</td>' +
+                      '<td>' + record.yard + '</td>' +
+                      '<td>' + record.bay + '</td>' +
+                      '<td>' + record.slot + '</td>' +
+                      '<td>' + record.vin + '</td>' +
+                      '<td>' + record.time + '</td>';
+      tableBody.appendChild(row);
+    }
+
+    // Export CSV
+    function completeScanning() {
+      if (records.length === 0) {
+        alert("No data to export.");
+        return;
+      }
+
+      var csv = "S.No,Yard,Bay,Slot,VIN,Time\n";
+      for (var i = 0; i < records.length; i++) {
+        var r = records[i];
+        csv += r.id + "," + r.yard + "," + r.bay + "," + r.slot + "," + r.vin + "," + r.time + "\n";
+      }
+
+      var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      var link = document.createElement("a");
+      var fileName = "VIN_Export_" + new Date().toISOString().slice(0,10) + ".csv";
+
+      if (navigator.msSaveBlob) {
+        navigator.msSaveBlob(blob, fileName);
+      } else {
+        var url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", fileName);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+
+      alert("CSV exported successfully.");
+    }
+
+    // Reset the entire form and state
+    function resetAll() {
+      // Reset variables
+      yardName = "";
+      bayName = "";
+      slotCount = 1;
+      vinCount = 1;
+      records = [];
+
+      // Clear input values
+      yardInput.value = "";
+      bayInput.value = "";
+      vinInput.value = "";
+
+      // Enable Yard input
+      yardInput.disabled = false;
+
+      // Clear table
+      tableBody.innerHTML = "";
+
+      // Hide sections
+      document.getElementById('scanSection').style.display = 'none';
+      document.getElementById('vinInputSection').style.display = 'none';
+      document.getElementById('vinTable').style.display = 'none';
+
+      alert("Reset complete. Ready to start again.");
+    }
+  </script>
+
+</body>
+</html>
