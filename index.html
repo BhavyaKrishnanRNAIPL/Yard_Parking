@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>VIN Scanner Offline</title>
   <style>
     body {
@@ -9,29 +9,32 @@
       margin: 20px;
       max-width: 600px;
     }
-
-    input, button {
+    input, button, select {
       padding: 10px;
       margin: 5px 0;
       width: 100%;
       font-size: 16px;
+      box-sizing: border-box;
     }
-
     table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 20px;
     }
-
     th, td {
       border: 1px solid #ddd;
       padding: 8px;
       text-align: center;
     }
-
     .scan-input {
       font-weight: bold;
       font-size: 18px;
+    }
+    button.skip, button.empty {
+      width: 48%;
+      display: inline-block;
+      margin: 5px 1%;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -39,26 +42,59 @@
 
   <h2>VIN Allocation (Offline)</h2>
 
-  <!-- Yard Input -->
+  <!-- Mode Selection -->
   <div>
-    <label>Enter Yard Name:</label>
-    <input type="text" id="yard" autocomplete="off" autocorrect="off" spellcheck="false">
-    <button onclick="startScanning()">Start Scanning</button>
+    <label>Select Mode:</label>
+    <select id="modeSelect" onchange="handleModeChange()">
+      <option value="">-- Select --</option>
+      <option value="yard">Yard Mapping</option>
+      <option value="individual">Individual VIN Parking</option>
+    </select>
   </div>
 
-  <!-- Bay Input -->
-  <div id="scanSection" style="display:none;">
-    <label>Enter Bay Name:</label>
-    <input type="text" id="bay" autocomplete="off" autocorrect="off" spellcheck="false">
-    <button onclick="setBay()">Set Bay</button>
-
-    <!-- VIN Scan Input -->
-    <div id="vinInputSection" style="display:none;">
-      <label>Scan VIN:</label>
-      <input type="text" id="vin" class="scan-input" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="none">
-      <button onclick="completeScanning()">Complete Scanning & Export</button>
-      <button onclick="resetAll()" style="background-color: red; color: white;">Reset All</button>
+  <!-- Yard Mapping Section -->
+  <div id="yardMappingSection" style="display:none; margin-top:20px;">
+    <!-- Yard Input -->
+    <div>
+      <label>Enter Yard Name:</label>
+      <input type="text" id="yard" autocomplete="off" autocorrect="off" spellcheck="false" />
+      <button onclick="startScanning()">Start Scanning</button>
     </div>
+
+    <!-- Bay Input -->
+    <div id="scanSection" style="display:none; margin-top: 15px;">
+      <label>Enter Bay Name:</label>
+      <input type="text" id="bay" autocomplete="off" autocorrect="off" spellcheck="false" />
+      <button onclick="setBay()">Set Bay</button>
+
+      <!-- VIN Scan Input -->
+      <div id="vinInputSection" style="display:none; margin-top: 15px;">
+        <label>Scan VIN:</label>
+        <input type="text" id="vin" class="scan-input" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="none" />
+        
+        <div style="margin-top:10px;">
+          <button class="skip" onclick="skipSlot()" style="background-color:#f0ad4e; color:white;">Skip Slot</button>
+          <button class="empty" onclick="addEmptySlot()" style="background-color:#5bc0de; color:white;">Add Empty Slot</button>
+        </div>
+
+        <button onclick="completeScanning()" style="margin-top:10px;">Complete Scanning & Export</button>
+        <button onclick="resetAll()" style="background-color: red; color: white; margin-top:10px;">Reset All</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Individual VIN Parking Section -->
+  <div id="individualVinSection" style="display:none; margin-top: 20px;">
+    <label>Yard:</label>
+    <input type="text" id="indYard" autocomplete="off" autocorrect="off" spellcheck="false" />
+    <label>Bay:</label>
+    <input type="text" id="indBay" autocomplete="off" autocorrect="off" spellcheck="false" />
+    <label>Slot:</label>
+    <input type="text" id="indSlot" autocomplete="off" autocorrect="off" spellcheck="false" />
+    <label>VIN:</label>
+    <input type="text" id="indVin" autocomplete="off" autocorrect="off" spellcheck="false" />
+    <button onclick="submitIndividualVin()" style="margin-top:10px;">Submit VIN</button>
+    <button onclick="resetAll()" style="background-color: red; color: white; margin-top:10px;">Reset All</button>
   </div>
 
   <!-- VIN Table -->
@@ -77,7 +113,8 @@
   </table>
 
   <script>
-    // Declare variables (for older JS compatibility)
+    // Variables
+    var mode = "";
     var yardName = "";
     var bayName = "";
     var slotCount = 1;
@@ -89,34 +126,57 @@
     var vinInput = document.getElementById('vin');
     var tableBody = document.getElementById('tableBody');
 
-    // Start scanning: lock Yard and show Bay section
+    // Mode select handler
+    function handleModeChange() {
+      mode = document.getElementById("modeSelect").value;
+      // Reset all on mode change
+      resetAll(false);
+
+      document.getElementById("yardMappingSection").style.display = mode === "yard" ? "block" : "none";
+      document.getElementById("individualVinSection").style.display = mode === "individual" ? "block" : "none";
+
+      if(mode) {
+        // Disable mode selector after choice
+        document.getElementById("modeSelect").disabled = true;
+      }
+    }
+
+    // Start scanning yard mapping mode
     function startScanning() {
-      yardName = yardInput.value;
+      yardName = yardInput.value.trim();
       if (!yardName) {
         alert("Please enter Yard name.");
         return;
       }
       yardInput.disabled = true;
       document.getElementById('scanSection').style.display = 'block';
+      bayInput.focus();
     }
 
-    // Set Bay name and reset slot counter
+    // Set bay name and prepare for VIN input
     function setBay() {
-      bayName = bayInput.value;
+      bayName = bayInput.value.trim();
       if (!bayName) {
         alert("Please enter Bay name.");
         return;
       }
       slotCount = 1;
+      vinInput.value = "";
       document.getElementById('vinInputSection').style.display = 'block';
       document.getElementById('vinTable').style.display = 'table';
       vinInput.focus();
     }
 
-    // Handle auto VIN scanning (150ms delay after input)
+    // VIN auto-scanning logic with delay
     vinInput.oninput = function () {
-      setTimeout(function () {
-        var vin = vinInput.value;
+      var vinVal = vinInput.value.trim();
+      if(vinVal === "") return;
+
+      // Clear previous timeout if any
+      if(vinInput._timeout) clearTimeout(vinInput._timeout);
+
+      vinInput._timeout = setTimeout(function() {
+        var vin = vinInput.value.trim();
         if (vin !== "") {
           addVinRecord(vin);
           vinInput.value = "";
@@ -124,7 +184,7 @@
       }, 150);
     };
 
-    // Add VIN entry
+    // Add VIN record in yard mapping mode
     function addVinRecord(vin) {
       var now = new Date();
       var timestamp = now.toLocaleString();
@@ -146,7 +206,7 @@
       vinInput.focus();
     }
 
-    // Add row to HTML table
+    // Add a row to the HTML table
     function addRowToTable(record) {
       var row = document.createElement('tr');
       row.innerHTML = '<td>' + record.id + '</td>' +
@@ -158,7 +218,79 @@
       tableBody.appendChild(row);
     }
 
-    // Export CSV
+    // Skip slot without adding a record
+    function skipSlot() {
+      if (!yardName || !bayName) {
+        alert("Please set Yard and Bay first.");
+        return;
+      }
+      slotCount++;
+      vinInput.focus();
+    }
+
+    // Add empty slot record
+    function addEmptySlot() {
+      if (!yardName || !bayName) {
+        alert("Please set Yard and Bay first.");
+        return;
+      }
+
+      var now = new Date();
+      var timestamp = now.toLocaleString();
+
+      var record = {
+        id: vinCount,
+        yard: yardName,
+        bay: bayName,
+        slot: slotCount,
+        vin: "(Empty)",
+        time: timestamp
+      };
+
+      records.push(record);
+      addRowToTable(record);
+
+      slotCount++;
+      vinCount++;
+      vinInput.focus();
+    }
+
+    // Submit single VIN in individual parking mode
+    function submitIndividualVin() {
+      var yard = document.getElementById("indYard").value.trim();
+      var bay = document.getElementById("indBay").value.trim();
+      var slot = document.getElementById("indSlot").value.trim();
+      var vin = document.getElementById("indVin").value.trim();
+
+      if (!yard || !bay || !slot || !vin) {
+        alert("Please fill all fields.");
+        return;
+      }
+
+      // Reset previous data before adding
+      records = [];
+      tableBody.innerHTML = "";
+
+      var now = new Date();
+      var timestamp = now.toLocaleString();
+
+      var record = {
+        id: 1,
+        yard: yard,
+        bay: bay,
+        slot: slot,
+        vin: vin,
+        time: timestamp
+      };
+
+      records.push(record);
+      addRowToTable(record);
+      document.getElementById("vinTable").style.display = "table";
+
+      alert("VIN added successfully.");
+    }
+
+    // Export CSV (works for both modes)
     function completeScanning() {
       if (records.length === 0) {
         alert("No data to export.");
@@ -168,7 +300,9 @@
       var csv = "S.No,Yard,Bay,Slot,VIN,Time\n";
       for (var i = 0; i < records.length; i++) {
         var r = records[i];
-        csv += r.id + "," + r.yard + "," + r.bay + "," + r.slot + "," + r.vin + "," + r.time + "\n";
+        // Escape commas if needed (basic)
+        var vinSafe = r.vin.includes(",") ? `"${r.vin}"` : r.vin;
+        csv += r.id + "," + r.yard + "," + r.bay + "," + r.slot + "," + vinSafe + "," + r.time + "\n";
       }
 
       var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -189,8 +323,8 @@
       alert("CSV exported successfully.");
     }
 
-    // Reset the entire form and state
-    function resetAll() {
+    // Reset everything - pass true if triggered by reset button, false if from mode change
+    function resetAll(showAlert=true) {
       // Reset variables
       yardName = "";
       bayName = "";
@@ -198,25 +332,40 @@
       vinCount = 1;
       records = [];
 
-      // Clear input values
+      // Clear all inputs
       yardInput.value = "";
       bayInput.value = "";
       vinInput.value = "";
+      document.getElementById("indYard").value = "";
+      document.getElementById("indBay").value = "";
+      document.getElementById("indSlot").value = "";
+      document.getElementById("indVin").value = "";
 
-      // Enable Yard input
+      // Enable inputs
       yardInput.disabled = false;
+      bayInput.disabled = false;
 
-      // Clear table
-      tableBody.innerHTML = "";
-
-      // Hide sections
+      // Show/hide sections
       document.getElementById('scanSection').style.display = 'none';
       document.getElementById('vinInputSection').style.display = 'none';
       document.getElementById('vinTable').style.display = 'none';
 
-      alert("Reset complete. Ready to start again.");
+      // Clear table body
+      tableBody.innerHTML = "";
+
+      // Reset mode selector only if showAlert is true (not during mode switch)
+      if(showAlert) {
+        // Enable mode selector again for new session
+        document.getElementById("modeSelect").disabled = false;
+        document.getElementById("modeSelect").value = "";
+        document.getElementById("yardMappingSection").style.display = "none";
+        document.getElementById("individualVinSection").style.display = "none";
+
+        alert("Reset complete. Ready to start again.");
+      }
     }
   </script>
 
 </body>
 </html>
+
