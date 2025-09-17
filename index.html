@@ -73,7 +73,7 @@
         <input type="text" id="vin" class="scan-input" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="none" />
         
         <div style="margin-top:10px;">
-          <button class="skip" onclick="skipSlot()" style="background-color:#f0ad4e; color:white;">Skip Slot</button>
+          <!-- Skip Slot button removed -->
           <button class="empty" onclick="addEmptySlot()" style="background-color:#5bc0de; color:white;">Add Empty Slot</button>
         </div>
 
@@ -94,6 +94,7 @@
     <label>VIN:</label>
     <input type="text" id="indVin" autocomplete="off" autocorrect="off" spellcheck="false" />
     <button onclick="submitIndividualVin()" style="margin-top:10px;">Submit VIN</button>
+    <button onclick="completeScanning()" style="margin-top:10px;">Export Data</button>
     <button onclick="resetAll()" style="background-color: red; color: white; margin-top:10px;">Reset All</button>
   </div>
 
@@ -218,15 +219,7 @@
       tableBody.appendChild(row);
     }
 
-    // Skip slot without adding a record
-    function skipSlot() {
-      if (!yardName || !bayName) {
-        alert("Please set Yard and Bay first.");
-        return;
-      }
-      slotCount++;
-      vinInput.focus();
-    }
+    // Skip slot without adding a record - REMOVED
 
     // Add empty slot record
     function addEmptySlot() {
@@ -267,15 +260,12 @@
         return;
       }
 
-      // Reset previous data before adding
-      records = [];
-      tableBody.innerHTML = "";
-
+      // Add new record without clearing previous ones
       var now = new Date();
       var timestamp = now.toLocaleString();
 
       var record = {
-        id: 1,
+        id: records.length + 1,
         yard: yard,
         bay: bay,
         slot: slot,
@@ -288,6 +278,12 @@
       document.getElementById("vinTable").style.display = "table";
 
       alert("VIN added successfully.");
+
+      // Clear inputs after adding
+      document.getElementById("indYard").value = "";
+      document.getElementById("indBay").value = "";
+      document.getElementById("indSlot").value = "";
+      document.getElementById("indVin").value = "";
     }
 
     // Export CSV (works for both modes)
