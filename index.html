@@ -881,10 +881,6 @@
         <button type="button" id="scanForwardBtn" class="direction-btn" onclick="switchDirection('F')">F (Forward)</button>
         <button type="button" id="scanReverseBtn" class="direction-btn" onclick="switchDirection('R')">R (Reverse)</button>
       </div>
-      <div style="margin-top: 15px;">
-        <button onclick="completeScanning()" class="btn-info">Export as CSV</button>
-        <button onclick="resetAll()" class="btn-danger">Reset All</button>
-      </div>
     </div>
 
     <div class="status-info">
@@ -893,15 +889,6 @@
           <div class="stat-value" id="currentRowCount">0</div>
           <div class="stat-label">Current Row VINs</div>
         </div>
-        <div class="stat-item">
-          <div class="stat-value" id="totalScanned">0</div>
-          <div class="stat-label">Total Scanned</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value" id="emptySlots">0</div>
-          <div class="stat-label">Empty Slots</div>
-        </div>
-      </div
               <!-- VIN Input -->
       <label for="vin">Scan VIN:</label>
       <input type="text" id="vin" class="scan-input" placeholder="Scan or enter VIN" oninput="handleVinInput()" />
@@ -910,6 +897,10 @@
       <div style="margin-top: 10px;">
         <button onclick="addEmptySlot()" class="btn-warning">Mark Empty Slot</button>
         <button onclick="nextRow()" class="btn-info">Complete Current Row</button>
+        <div style="margin-top: 15px;">
+          <button onclick="completeScanning()" class="btn-info">Export as CSV</button>
+          <button onclick="resetAll()" class="btn-danger">Reset All</button>
+      </div>
       </div>
     </div>
   </div>
