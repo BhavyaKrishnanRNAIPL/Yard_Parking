@@ -83,12 +83,12 @@
       width: 100%;
       border-collapse: collapse;
       margin-top: 15px;
-      font-size: 12px;
+      font-size: 11px;
     }
     
     th, td {
       border: 1px solid #ddd;
-      padding: 5px;
+      padding: 4px;
       text-align: center;
     }
     
@@ -119,7 +119,7 @@
       padding: 4px 8px;
       cursor: pointer;
       border-radius: 3px;
-      font-size: 11px;
+      font-size: 10px;
     }
     
     .hidden {
@@ -167,48 +167,75 @@
       border: 1px solid #4caf50;
       color: #2e7d32;
     }
+
+    .current-direction {
+      background: #e3f2fd;
+      border: 1px solid #2196f3;
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .sub-yard-list {
+      max-height: 150px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      background: white;
+      border-radius: 4px;
+    }
+
+    .sub-yard-item {
+      padding: 8px;
+      cursor: pointer;
+      border-bottom: 1px solid #eee;
+    }
+
+    .sub-yard-item:hover {
+      background: #f5f5f5;
+    }
+
+    .sub-yard-item.selected {
+      background: #3498db;
+      color: white;
+    }
   </style>
 
   <script>
     // Global state variables
     var appState = {
-      mode: "",
       yardName: "",
       subYardName: "",
       rowName: "",
-      direction: "",
-      bayCount: 1,
-      slotCount: 1,
+      currentDirection: "",
       vinCount: 1,
       records: [],
+      currentRowRecords: [],
       isScanning: false,
-      startBay: 1,
-      maxBayReached: 1
+      subYards: []
     };
 
     var vinInputTimeout;
 
-    // Handle mode selection
-    function handleModeChange() {
-      var modeSelect = document.getElementById("modeSelect");
-      appState.mode = modeSelect.value;
+    // Predefined sub yards list - can be customized
+    var predefinedSubYards = [
+      "H1", "H2", "H3", "H4", "H5",
+      "A1", "A2", "A3", "A4", "A5", 
+      "B1", "B2", "B3", "B4", "B5",
+      "C1", "C2", "C3", "C4", "C5"
+    ];
+
+    // Initialize sub yards dropdown
+    function initializeSubYards() {
+      var subYardSelect = document.getElementById('subYard');
+      subYardSelect.innerHTML = '<option value="">-- Select Sub Yard --</option>';
       
-      var yardSection = document.getElementById("yardMappingSection");
-      var individualSection = document.getElementById("individualVinSection");
-      
-      // Hide all sections first
-      yardSection.className = "container hidden";
-      individualSection.className = "container hidden";
-      
-      // Show selected section
-      if (appState.mode === "yard") {
-        yardSection.className = "container";
-      } else if (appState.mode === "individual") {
-        individualSection.className = "container";
-      }
-      
-      if (appState.mode) {
-        modeSelect.disabled = true;
+      for (var i = 0; i < predefinedSubYards.length; i++) {
+        var option = document.createElement('option');
+        option.value = predefinedSubYards[i];
+        option.text = predefinedSubYards[i];
+        subYardSelect.appendChild(option);
       }
     }
 
@@ -286,36 +313,26 @@
       return true;
     }
 
-    // Select direction
-    function selectDirection(dir) {
-      appState.direction = dir;
+    // Switch direction during scanning
+    function switchDirection(dir) {
+      appState.currentDirection = dir;
       
-      var currentDirection = document.getElementById('currentDirection');
-      var startBay = document.getElementById('startBay');
-      var forwardBtn = document.getElementById('forwardBtn');
-      var reverseBtn = document.getElementById('reverseBtn');
-      var startScanBtn = document.getElementById('startScanBtn');
-      var directionDisplay = document.getElementById('directionDisplay');
+      var currentDirDisplay = document.getElementById('currentDirectionDisplay');
+      var forwardBtn = document.getElementById('scanForwardBtn');
+      var reverseBtn = document.getElementById('scanReverseBtn');
       
-      currentDirection.innerHTML = dir === 'F' ? 'Forward' : 'Reverse';
+      currentDirDisplay.innerHTML = 'Current Direction: ' + (dir === 'F' ? 'Forward' : 'Reverse');
       
       // Update button styles
       if (dir === 'F') {
         forwardBtn.style.backgroundColor = '#27ae60';
         reverseBtn.style.backgroundColor = '#3498db';
-        appState.startBay = 1;
       } else {
         reverseBtn.style.backgroundColor = '#27ae60';
         forwardBtn.style.backgroundColor = '#3498db';
-        appState.startBay = 999; // Start high for reverse
       }
-      
-      appState.bayCount = appState.startBay;
-      startBay.innerHTML = appState.startBay;
-      
-      // Show direction display and enable start button
-      directionDisplay.className = "status-info";
-      startScanBtn.disabled = false;
+
+      showMessage("Switched to " + (dir === 'F' ? 'Forward' : 'Reverse') + " direction", "success");
     }
 
     // Start scanning process
@@ -333,22 +350,15 @@
         return;
       }
 
-      if (!appState.direction) {
-        showMessage("Please select direction (Forward or Reverse).", "error");
-        return;
-      }
-
       // Disable configuration inputs
       yard.disabled = true;
       subYard.disabled = true;
       row.disabled = true;
-      document.getElementById('forwardBtn').disabled = true;
-      document.getElementById('reverseBtn').disabled = true;
 
-      // Reset counters
-      appState.slotCount = 1;
+      // Reset for new row
+      appState.currentRowRecords = [];
+      appState.currentDirection = 'F'; // Default to forward
       appState.isScanning = true;
-      appState.maxBayReached = appState.startBay;
 
       // Show scanning interface
       var scanSection = document.getElementById('scanSection');
@@ -359,14 +369,18 @@
       vinTable.className = "";
       statsSection.className = "container";
 
+      // Set default direction
+      switchDirection('F');
+
       updateDisplay();
+      updateStatistics();
       
       var vinInput = document.getElementById('vin');
       if (vinInput) {
         vinInput.focus();
       }
 
-      showMessage("Scanning started! Begin scanning VINs or marking empty slots.", "success");
+      showMessage("Scanning started for Row: " + appState.rowName + ". Default direction: Forward", "success");
     }
 
     // Add VIN record
@@ -379,16 +393,19 @@
         yard: appState.yardName,
         subYard: appState.subYardName,
         row: appState.rowName,
-        bay: appState.bayCount,
-        slot: appState.slotCount,
+        bay: 0, // Temporary bay, will be calculated when row is completed
+        slot: appState.currentRowRecords.length + 1,
         vin: vin,
         time: timestamp,
+        direction: appState.currentDirection,
         isEmpty: false
       };
 
-      appState.records.push(record);
-      incrementCounters();
-      rebuildTable();
+      appState.currentRowRecords.push(record);
+      appState.vinCount++;
+      
+      rebuildCurrentTable();
+      updateDisplay();
       updateStatistics();
       
       var vinInput = document.getElementById('vin');
@@ -407,16 +424,19 @@
         yard: appState.yardName,
         subYard: appState.subYardName,
         row: appState.rowName,
-        bay: appState.bayCount,
-        slot: appState.slotCount,
+        bay: 0, // Temporary bay, will be calculated when row is completed
+        slot: appState.currentRowRecords.length + 1,
         vin: "(Empty)",
         time: timestamp,
+        direction: appState.currentDirection,
         isEmpty: true
       };
 
-      appState.records.push(record);
-      incrementCounters();
-      rebuildTable();
+      appState.currentRowRecords.push(record);
+      appState.vinCount++;
+      
+      rebuildCurrentTable();
+      updateDisplay();
       updateStatistics();
       
       var vinInput = document.getElementById('vin');
@@ -424,25 +444,29 @@
         vinInput.focus();
       }
 
-      var prevBay = appState.direction === 'F' ? appState.bayCount - 1 : appState.bayCount + 1;
-      showMessage("Empty slot marked in Bay " + prevBay, "success");
+      showMessage("Empty slot marked", "success");
     }
 
-    // Next Row functionality
+    // Complete current row and calculate bay numbers
     function nextRow() {
-      // Calculate range for current row
-      var rowRecords = [];
-      for (var i = 0; i < appState.records.length; i++) {
-        if (appState.records[i].row === appState.rowName) {
-          rowRecords.push(appState.records[i].bay);
-        }
+      if (appState.currentRowRecords.length === 0) {
+        showMessage("No records to complete for this row.", "error");
+        return;
       }
-      
-      if (rowRecords.length > 0) {
-        var minBay = Math.min.apply(Math, rowRecords);
-        var maxBay = Math.max.apply(Math, rowRecords);
-        showMessage("Row completed. Bay range: " + minBay + " to " + maxBay, "success");
+
+      // Calculate bay assignments based on direction logic
+      calculateBayAssignments();
+
+      // Add current row records to main records
+      for (var i = 0; i < appState.currentRowRecords.length; i++) {
+        appState.records.push(appState.currentRowRecords[i]);
       }
+
+      var totalRecords = appState.currentRowRecords.length;
+      var minBay = Math.min.apply(Math, appState.currentRowRecords.map(function(r) { return r.bay; }));
+      var maxBay = Math.max.apply(Math, appState.currentRowRecords.map(function(r) { return r.bay; }));
+
+      showMessage("Row " + appState.rowName + " completed. Total VINs: " + totalRecords + ", Bay range: " + minBay + " to " + maxBay, "success");
 
       // Reset for new row
       var yard = document.getElementById('yard');
@@ -454,53 +478,65 @@
       row.disabled = false;
       row.value = "";
       
-      document.getElementById('forwardBtn').disabled = false;
-      document.getElementById('reverseBtn').disabled = false;
-      document.getElementById('forwardBtn').style.backgroundColor = '#3498db';
-      document.getElementById('reverseBtn').style.backgroundColor = '#3498db';
-      document.getElementById('directionDisplay').className = "status-info hidden";
-      document.getElementById('startScanBtn').disabled = true;
-      
       // Hide scanning section
       document.getElementById('scanSection').className = "hidden";
       
       appState.isScanning = false;
-      appState.direction = "";
+      appState.currentRowRecords = [];
+      appState.currentDirection = "";
+      
+      rebuildMainTable();
+      updateStatistics();
+      
       row.focus();
     }
 
-    // Increment counters based on direction
-    function incrementCounters() {
-      appState.vinCount++;
-      appState.slotCount++;
-      
-      if (appState.direction === 'F') {
-        appState.bayCount++;
-        if (appState.bayCount > appState.maxBayReached) {
-          appState.maxBayReached = appState.bayCount;
-        }
-      } else {
-        appState.bayCount--;
-        if (appState.bayCount < appState.maxBayReached) {
-          appState.maxBayReached = appState.bayCount;
+    // Calculate bay assignments based on F/R logic
+    function calculateBayAssignments() {
+      var forwardRecords = [];
+      var reverseRecords = [];
+
+      // Separate records by direction
+      for (var i = 0; i < appState.currentRowRecords.length; i++) {
+        if (appState.currentRowRecords[i].direction === 'F') {
+          forwardRecords.push(appState.currentRowRecords[i]);
+        } else {
+          reverseRecords.push(appState.currentRowRecords[i]);
         }
       }
-      
-      updateDisplay();
+
+      var totalRecords = appState.currentRowRecords.length;
+      var startBay = 1;
+
+      // Assign bay numbers to forward records (1, 2, 3...)
+      for (var i = 0; i < forwardRecords.length; i++) {
+        forwardRecords[i].bay = startBay + i;
+      }
+
+      // Assign bay numbers to reverse records (from total down to forward end + 1)
+      var reverseBay = totalRecords;
+      for (var i = 0; i < reverseRecords.length; i++) {
+        reverseRecords[i].bay = reverseBay--;
+      }
     }
 
     // Update display elements
     function updateDisplay() {
-      var bayDisplay = document.getElementById('bayDisplay');
       var totalScanned = document.getElementById('totalScanned');
+      var currentRowCount = document.getElementById('currentRowCount');
       var emptySlots = document.getElementById('emptySlots');
       
-      if (bayDisplay) bayDisplay.innerHTML = appState.bayCount;
-      if (totalScanned) totalScanned.innerHTML = appState.records.length;
+      if (totalScanned) totalScanned.innerHTML = appState.records.length + appState.currentRowRecords.length;
+      if (currentRowCount) currentRowCount.innerHTML = appState.currentRowRecords.length;
       
       var emptyCount = 0;
       for (var i = 0; i < appState.records.length; i++) {
         if (appState.records[i].isEmpty) {
+          emptyCount++;
+        }
+      }
+      for (var i = 0; i < appState.currentRowRecords.length; i++) {
+        if (appState.currentRowRecords[i].isEmpty) {
           emptyCount++;
         }
       }
@@ -513,12 +549,13 @@
       var vinRecords = document.getElementById('vinRecords');
       var emptyRecords = document.getElementById('emptyRecords');
       
-      var total = appState.records.length;
+      var allRecords = appState.records.concat(appState.currentRowRecords);
+      var total = allRecords.length;
       var vinCount = 0;
       var emptyCount = 0;
       
-      for (var i = 0; i < appState.records.length; i++) {
-        if (appState.records[i].isEmpty) {
+      for (var i = 0; i < allRecords.length; i++) {
+        if (allRecords[i].isEmpty) {
           emptyCount++;
         } else {
           vinCount++;
@@ -549,24 +586,62 @@
       return year + '-' + month + '-' + day + ' ' + hours + ':' + minutes + ':' + seconds;
     }
 
-    // Rebuild table
-    function rebuildTable() {
+    // Rebuild current row table
+    function rebuildCurrentTable() {
       var tableBody = document.getElementById('tableBody');
       if (!tableBody) return;
       
       tableBody.innerHTML = "";
       
+      // Show current row records first
+      for (var i = 0; i < appState.currentRowRecords.length; i++) {
+        var record = appState.currentRowRecords[i];
+        var row = document.createElement("tr");
+        var isLastRecord = i === appState.currentRowRecords.length - 1;
+        var deleteBtn = isLastRecord ?
+          '<button class="delete-btn" onclick="deleteCurrentRecord(' + record.id + ')">Delete</button>' : 
+          '<span style="color: #bdc3c7;">Locked</span>';
+        
+        // Color code rows based on content and direction
+        if (record.isEmpty) {
+          row.style.backgroundColor = "#fff3cd";
+        } else if (record.direction === 'R') {
+          row.style.backgroundColor = "#ffe6e6";
+        }
+        
+        row.innerHTML = 
+          '<td>' + record.id + '</td>' +
+          '<td>' + record.yard + '</td>' +
+          '<td>' + record.subYard + '</td>' +
+          '<td>' + record.row + '</td>' +
+          '<td style="color: #999;">TBD</td>' + // Bay to be determined
+          '<td>' + record.slot + '</td>' +
+          '<td style="font-weight: ' + (record.isEmpty ? 'normal' : 'bold') + '; color: ' + (record.isEmpty ? '#856404' : '#155724') + '">' + record.vin + '</td>' +
+          '<td style="font-size: 10px;">' + record.time + '</td>' +
+          '<td style="font-size: 10px;">' + record.direction + '</td>' +
+          '<td>' + deleteBtn + '</td>';
+          
+        tableBody.appendChild(row);
+      }
+    }
+
+    // Rebuild main table with completed rows
+    function rebuildMainTable() {
+      var tableBody = document.getElementById('tableBody');
+      if (!tableBody) return;
+      
+      tableBody.innerHTML = "";
+      
+      // Show completed records
       for (var i = 0; i < appState.records.length; i++) {
         var record = appState.records[i];
         var row = document.createElement("tr");
-        var isLastRecord = i === appState.records.length - 1;
-        var deleteBtn = isLastRecord ?
-          '<button class="delete-btn" onclick="deleteRecord(' + record.id + ')">Delete</button>' : 
-          '<span style="color: #bdc3c7;">Locked</span>';
         
-        // Color code rows based on content
+        // Color code rows based on content and direction
         if (record.isEmpty) {
           row.style.backgroundColor = "#fff3cd";
+        } else if (record.direction === 'R') {
+          row.style.backgroundColor = "#ffe6e6";
         }
         
         row.innerHTML = 
@@ -577,15 +652,21 @@
           '<td>' + record.bay + '</td>' +
           '<td>' + record.slot + '</td>' +
           '<td style="font-weight: ' + (record.isEmpty ? 'normal' : 'bold') + '; color: ' + (record.isEmpty ? '#856404' : '#155724') + '">' + record.vin + '</td>' +
-          '<td style="font-size: 11px;">' + record.time + '</td>' +
-          '<td>' + deleteBtn + '</td>';
+          '<td style="font-size: 10px;">' + record.time + '</td>' +
+          '<td style="font-size: 10px;">' + record.direction + '</td>' +
+          '<td><span style="color: #bdc3c7;">Final</span></td>';
           
         tableBody.appendChild(row);
+      }
+
+      // Show current row records if scanning
+      if (appState.isScanning) {
+        rebuildCurrentTable();
       }
       
       var vinTable = document.getElementById('vinTable');
       if (vinTable) {
-        if (appState.records.length === 0) {
+        if (appState.records.length === 0 && appState.currentRowRecords.length === 0) {
           vinTable.className = "hidden";
         } else {
           vinTable.className = "";
@@ -593,29 +674,22 @@
       }
     }
 
-    // Delete record (only last one)
-    function deleteRecord(id) {
-      if (appState.records.length === 0) return;
+    // Delete current record (only last one)
+    function deleteCurrentRecord(id) {
+      if (appState.currentRowRecords.length === 0) return;
 
-      var lastRecord = appState.records[appState.records.length - 1];
+      var lastRecord = appState.currentRowRecords[appState.currentRowRecords.length - 1];
       if (lastRecord.id !== id) {
         showMessage("Only the most recent record can be deleted.", "error");
         return;
       }
 
-      appState.records.pop();
+      appState.currentRowRecords.pop();
       appState.vinCount--;
-      appState.slotCount--;
-      
-      if (appState.direction === 'F') {
-        appState.bayCount--;
-      } else {
-        appState.bayCount++;
-      }
 
       updateDisplay();
       updateStatistics();
-      rebuildTable();
+      rebuildCurrentTable();
       
       var vinInput = document.getElementById('vin');
       if (vinInput) {
@@ -627,19 +701,26 @@
 
     // Complete scanning and export
     function completeScanning() {
-      if (appState.records.length === 0) {
+      if (appState.records.length === 0 && appState.currentRowRecords.length === 0) {
         showMessage("No data to export. Please scan some VINs first.", "error");
         return;
       }
 
+      // If there are current row records, complete them first
+      if (appState.currentRowRecords.length > 0) {
+        if (confirm("Complete current row before export?")) {
+          nextRow();
+        }
+      }
+
       // Create CSV content
-      var csv = "S.No,Yard,Sub Yard,Row,Bay,Slot,VIN,Timestamp\n";
+      var csv = "S.No,Yard,Sub Yard,Row,Bay,Slot,VIN,Timestamp,Direction\n";
       
       for (var i = 0; i < appState.records.length; i++) {
         var record = appState.records[i];
         var vinSafe = record.vin.indexOf(",") !== -1 ? '"' + record.vin + '"' : record.vin;
         csv += record.id + ',' + record.yard + ',' + record.subYard + ',' + record.row + ',' + 
-               record.bay + ',' + record.slot + ',' + vinSafe + ',' + record.time + '\n';
+               record.bay + ',' + record.slot + ',' + vinSafe + ',' + record.time + ',' + record.direction + '\n';
       }
 
       // Download CSV file
@@ -650,7 +731,7 @@
         var dateStr = now.getFullYear() + '-' + 
                       (now.getMonth() + 1 < 10 ? '0' : '') + (now.getMonth() + 1) + '-' + 
                       (now.getDate() < 10 ? '0' : '') + now.getDate();
-        var fileName = "VIN_Export_" + appState.yardName + "_" + dateStr + "_" + Date.now() + ".csv";
+        var fileName = "VIN_Export_" + appState.yardName + "_" + appState.subYardName + "_" + dateStr + "_" + Date.now() + ".csv";
 
         if (navigator.msSaveBlob) {
           navigator.msSaveBlob(blob, fileName);
@@ -671,79 +752,23 @@
       }
     }
 
-    // Submit individual VIN
-    function submitIndividualVin() {
-      var yard = document.getElementById("indYard").value.trim();
-      var bay = document.getElementById("indBay").value.trim();
-      var slot = document.getElementById("indSlot").value.trim();
-      var vinInput = document.getElementById("indVin").value.trim().toUpperCase();
-
-      if (!yard || !bay || !slot || !vinInput) {
-        showMessage("Please fill all fields.", "error", "ind");
-        return;
-      }
-
-      var extractedVin = extractVIN(vinInput);
-      if (!extractedVin || !validateVIN(extractedVin)) {
-        showMessage("Invalid VIN format or unable to extract VIN from input.", "error", "ind");
-        document.getElementById("indVin").focus();
-        return;
-      }
-
-      var now = new Date();
-      var timestamp = formatDateTime(now);
-
-      var record = {
-        id: appState.records.length + 1,
-        yard: yard,
-        subYard: "-",
-        row: "-",
-        bay: bay,
-        slot: slot,
-        vin: extractedVin,
-        time: timestamp,
-        isEmpty: false
-      };
-
-      appState.records.push(record);
-      rebuildTable();
-      updateStatistics();
-
-      // Clear form and show table/stats
-      document.getElementById("indYard").value = "";
-      document.getElementById("indBay").value = "";
-      document.getElementById("indSlot").value = "";
-      document.getElementById("indVin").value = "";
-      document.getElementById("indYard").focus();
-
-      var vinTable = document.getElementById('vinTable');
-      var statsSection = document.getElementById('statsSection');
-      if (vinTable) vinTable.className = "";
-      if (statsSection) statsSection.className = "container";
-
-      showMessage("VIN " + extractedVin + " added successfully!", "success", "ind");
-    }
-
     // Reset everything
     function resetAll() {
       // Reset state
       appState = {
-        mode: "",
         yardName: "",
         subYardName: "",
         rowName: "",
-        direction: "",
-        bayCount: 1,
-        slotCount: 1,
+        currentDirection: "",
         vinCount: 1,
         records: [],
+        currentRowRecords: [],
         isScanning: false,
-        startBay: 1,
-        maxBayReached: 1
+        subYards: []
       };
 
       // Clear all inputs
-      var inputs = ['yard', 'subYard', 'row', 'vin', 'indYard', 'indBay', 'indSlot', 'indVin'];
+      var inputs = ['yard', 'subYard', 'row', 'vin'];
       for (var i = 0; i < inputs.length; i++) {
         var element = document.getElementById(inputs[i]);
         if (element) {
@@ -752,27 +777,17 @@
         }
       }
 
-      // Reset UI
-      var modeSelect = document.getElementById("modeSelect");
-      if (modeSelect) {
-        modeSelect.disabled = false;
-        modeSelect.value = "";
-      }
-
       // Hide all sections
       var sectionsToHide = [
         'scanSection', 
         'vinTable', 
-        'yardMappingSection', 
-        'individualVinSection', 
-        'statsSection', 
-        'directionDisplay'
+        'statsSection'
       ];
       
       for (var i = 0; i < sectionsToHide.length; i++) {
         var element = document.getElementById(sectionsToHide[i]);
         if (element) {
-          if (sectionsToHide[i] === 'yardMappingSection' || sectionsToHide[i] === 'individualVinSection' || sectionsToHide[i] === 'statsSection') {
+          if (sectionsToHide[i] === 'statsSection') {
             element.className = "container hidden";
           } else {
             element.className = "hidden";
@@ -780,32 +795,10 @@
         }
       }
 
-      // Reset button states
-      var forwardBtn = document.getElementById('forwardBtn');
-      var reverseBtn = document.getElementById('reverseBtn');
-      var startScanBtn = document.getElementById('startScanBtn');
-      
-      if (forwardBtn) {
-        forwardBtn.disabled = false;
-        forwardBtn.style.backgroundColor = '#3498db';
-      }
-      if (reverseBtn) {
-        reverseBtn.disabled = false;
-        reverseBtn.style.backgroundColor = '#3498db';
-      }
-      if (startScanBtn) {
-        startScanBtn.disabled = true;
-      }
-
       // Clear table and messages
       var tableBody = document.getElementById('tableBody');
       if (tableBody) {
         tableBody.innerHTML = "";
-      }
-      
-      var bayDisplay = document.getElementById('bayDisplay');
-      if (bayDisplay) {
-        bayDisplay.innerHTML = "1";
       }
 
       var messageArea = document.getElementById('messageArea');
@@ -813,10 +806,8 @@
         messageArea.innerHTML = "";
       }
 
-      var indMessageArea = document.getElementById('indMessageArea');
-      if (indMessageArea) {
-        indMessageArea.innerHTML = "";
-      }
+      // Reset sub yard dropdown
+      initializeSubYards();
 
       // Reset statistics
       updateStatistics();
@@ -826,13 +817,8 @@
     }
 
     // Show message function
-    function showMessage(message, type, area) {
-      var targetArea;
-      if (area === "ind") {
-        targetArea = document.getElementById('indMessageArea');
-      } else {
-        targetArea = document.getElementById('messageArea');
-      }
+    function showMessage(message, type) {
+      var targetArea = document.getElementById('messageArea');
       
       if (!targetArea) return;
 
@@ -846,6 +832,11 @@
         }
       }, 5000);
     }
+
+    // Initialize on page load
+    window.onload = function() {
+      initializeSubYards();
+    };
   </script>
 </head>
 <body>
@@ -853,104 +844,94 @@
 <div class="container">
   <h2>VIN Scanner & Allocation System</h2>
 
-  <!-- Mode Selection -->
+  <!-- Yard Configuration -->
   <div>
-    <label>Select Operating Mode:</label>
-    <select id="modeSelect" onchange="handleModeChange()">
-      <option value="">-- Choose Mode --</option>
-      <option value="yard">Yard Mapping (Sequential Scanning)</option>
-      <option value="individual">Individual VIN Parking</option>
-    </select>
-  </div>
-
-  <!-- Yard Mapping Section -->
-  <div id="yardMappingSection" class="container hidden">
-    <h3>Yard Mapping Configuration</h3>
-    
     <label>Yard Name:</label>
-    <input type="text" id="yard" placeholder="e.g., North Yard" />
+    <input type="text" id="yard" placeholder="e.g., H" />
     
     <label>Sub Yard:</label>
-    <input type="text" id="subYard" placeholder="e.g., Section A" />
+    <select id="subYard">
+      <option value="">-- Select Sub Yard --</option>
+    </select>
     
     <label>Row Name:</label>
-    <input type="text" id="row" placeholder="e.g., Row 1" />
+    <input type="text" id="row" placeholder="e.g., 1" />
     
-    <!-- Direction Selection -->
-    <label>Select Direction:</label>
-    <div>
-      <button type="button" id="forwardBtn" class="direction-btn" onclick="selectDirection('F')">F (Forward)</button>
-      <button type="button" id="reverseBtn" class="direction-btn" onclick="selectDirection('R')">R (Reverse)</button>
-    </div>
-    
-    <div id="directionDisplay" class="status-info hidden">
-      Direction: <span id="currentDirection">-</span> | Start Bay: <span id="startBay">1</span>
-    </div>
-    
-    <button onclick="startScanning()" class="btn-success" id="startScanBtn" disabled="disabled">Start Sequential Scanning</button>
+    <button onclick="startScanning()" class="btn-success" id="startScanBtn">Start Scanning</button>
+  </div>
 
-    <!-- Scanning Controls -->
-    <div id="scanSection" class="hidden">
-      <div class="status-info">
-        <div class="stats">
-          <div class="stat-item">
-            <div class="stat-value" id="bayDisplay">1</div>
-            <div class="stat-label">Current Bay</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="totalScanned">0</div>
-            <div class="stat-label">Total Scanned</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="emptySlots">0</div>
-            <div class="stat-label">Empty Slots</div>
-          </div>
-        </div>
+  <!-- Scanning Controls -->
+  <div id="scanSection" class="container hidden">
+    <h3>Scanning Row: <span id="currentRowName"></span></h3>
+    
+    <!-- Direction Control During Scanning -->
+    <div class="current-direction">
+      <div id="currentDirectionDisplay">Current Direction: Forward</div>
+      <div style="margin-top: 10px;">
+        <button type="button" id="scanForwardBtn" class="direction-btn" onclick="switchDirection('F')">F (Forward)</button>
+        <button type="button" id="scanReverseBtn" class="direction-btn" onclick="switchDirection('R')">R (Reverse)</button>
       </div>
+    </div>
 
-      <label>Scan/Enter VIN:</label>
-      <input 
-        type="text" 
-        id="vin" 
-        class="scan-input" 
-        placeholder="Scan barcode or type VIN manually"
-        oninput="handleVinInput()"
-      />
-      
-      <div id="messageArea"></div>
+    <div class="status-info">
+      <div class="stats">
+        <div class="stat-item">
+          <div class="stat-value" id="currentRowCount">0</div>
+          <div class="stat-label">Current Row VINs</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="totalScanned">0</div>
+          <div class="stat-label">Total Scanned</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="emptySlots">0</div>
+          <div class="stat-label">Empty Slots</div>
+        </div>
+      </div
+              <!-- VIN Input -->
+      <label for="vin">Scan VIN:</label>
+      <input type="text" id="vin" class="scan-input" placeholder="Scan or enter VIN" oninput="handleVinInput()" />
 
-      <button onclick="addEmptySlot()" class="btn-info">Mark Empty Slot</button>
-      <button onclick="nextRow()" class="btn-warning">Next Row</button>
-      <button onclick="completeScanning()" class="btn-success">Complete & Export CSV</button>
-      <button onclick="resetAll()" class="btn-danger">Reset Everything</button>
+      <!-- Action Buttons -->
+      <div style="margin-top: 10px;">
+        <button onclick="addEmptySlot()" class="btn-warning">Mark Empty Slot</button>
+        <button onclick="nextRow()" class="btn-info">Complete Current Row</button>
+        <button onclick="completeScanning()" class="btn-success">Export as CSV</button>
+        <button onclick="resetAll()" class="btn-danger">Reset All</button>
+      </div>
     </div>
   </div>
 
-  <!-- Individual VIN Parking Section -->
-  <div id="individualVinSection" class="container hidden">
-    <h3>Individual VIN Assignment</h3>
-    
-    <label>Yard:</label>
-    <input type="text" id="indYard" placeholder="Yard name" />
-    
-    <label>Bay:</label>
-    <input type="text" id="indBay" placeholder="Bay number/name" />
-    
-    <label>Slot:</label>
-    <input type="text" id="indSlot" placeholder="Slot number" />
-    
-    <label>VIN:</label>
-    <input type="text" id="indVin" placeholder="Vehicle VIN" />
-    
-    <div id="indMessageArea"></div>
-    
-    <button onclick="submitIndividualVin()" class="btn-success">Add VIN Record</button>
-    <button onclick="completeScanning()" class="btn-info">Export Current Data</button>
-    <button onclick="resetAll()" class="btn-danger">Reset Everything</button>
+  <!-- Message Display Area -->
+  <div id="messageArea"></div>
+
+  <!-- VIN Table -->
+  <div class="container hidden" id="vinTable">
+    <h3>VIN Records</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>S.No</th>
+          <th>Yard</th>
+          <th>Sub Yard</th>
+          <th>Row</th>
+          <th>Bay</th>
+          <th>Slot</th>
+          <th>VIN</th>
+          <th>Timestamp</th>
+          <th>Direction</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <!-- Rows will be dynamically added here -->
+      </tbody>
+    </table>
   </div>
 
-  <!-- Statistics Display -->
-  <div id="statsSection" class="container hidden">
+  <!-- Statistics -->
+  <div class="container hidden" id="statsSection">
+    <h3>Overall Statistics</h3>
     <div class="stats">
       <div class="stat-item">
         <div class="stat-value" id="totalRecords">0</div>
@@ -958,32 +939,14 @@
       </div>
       <div class="stat-item">
         <div class="stat-value" id="vinRecords">0</div>
-        <div class="stat-label">VIN Records</div>
+        <div class="stat-label">VINs Scanned</div>
       </div>
       <div class="stat-item">
         <div class="stat-value" id="emptyRecords">0</div>
-        <div class="stat-label">Empty Records</div>
+        <div class="stat-label">Empty Slots</div>
       </div>
     </div>
   </div>
-
-  <!-- VIN Records Table -->
-  <table id="vinTable" class="hidden">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Yard</th>
-        <th>Sub Yard</th>
-        <th>Row</th>
-        <th>Bay</th>
-        <th>Slot</th>
-        <th>VIN</th>
-        <th>Time</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody id="tableBody"></tbody>
-  </table>
 </div>
 
 </body>
