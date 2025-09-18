@@ -56,7 +56,7 @@
 <!-- Mode Selection -->
 <div>
   <label>Select Mode:</label>
-  <select id="modeSelect" onchange="handleModeChange()">
+  <select id="modeSelect">
     <option value="">-- Select --</option>
     <option value="yard">Yard Mapping</option>
     <option value="individual">Individual VIN Parking</option>
@@ -127,18 +127,24 @@
 </table>
 
 <script>
-  var mode = "";
-  var yardName = "";
-  var subYardName = "";
-  var rowName = "";
-  var bayCount = 1;
-  var slotCount = 1;
-  var vinCount = 1;
-  var records = [];
+document.addEventListener("DOMContentLoaded", function () {
+  let mode = "";
+  let yardName = "";
+  let subYardName = "";
+  let rowName = "";
+  let bayCount = 1;
+  let slotCount = 1;
+  let vinCount = 1;
+  let records = [];
 
-  var yardInput = document.getElementById('yard');
-  var vinInput = document.getElementById('vin');
-  var tableBody = document.getElementById('tableBody');
+  const yardInput = document.getElementById('yard');
+  const subYardInput = document.getElementById('subYard');
+  const rowInput = document.getElementById('row');
+  const vinInput = document.getElementById('vin');
+  const bayDisplay = document.getElementById('bayDisplay');
+  const tableBody = document.getElementById('tableBody');
+
+  document.getElementById("modeSelect").addEventListener("change", handleModeChange);
 
   function handleModeChange() {
     mode = document.getElementById("modeSelect").value;
@@ -150,10 +156,10 @@
     }
   }
 
-  function startScanning() {
+  window.startScanning = function () {
     yardName = yardInput.value.trim();
-    subYardName = document.getElementById("subYard").value.trim();
-    rowName = document.getElementById("row").value.trim();
+    subYardName = subYardInput.value.trim();
+    rowName = rowInput.value.trim();
 
     if (!yardName || !subYardName || !rowName) {
       alert("Please enter Yard, Sub Yard and Row.");
@@ -161,12 +167,12 @@
     }
 
     yardInput.disabled = true;
-    document.getElementById("subYard").disabled = true;
-    document.getElementById("row").disabled = true;
+    subYardInput.disabled = true;
+    rowInput.disabled = true;
 
     bayCount = 1;
     slotCount = 1;
-    document.getElementById("bayDisplay").innerText = bayCount;
+    bayDisplay.innerText = bayCount;
 
     document.getElementById('scanSection').style.display = 'block';
     document.getElementById('vinInputSection').style.display = 'block';
@@ -174,55 +180,46 @@
     vinInput.focus();
   }
 
-  vinInput.oninput = function () {
-    var vinVal = vinInput.value.trim();
-    if (vinVal === "") return;
-
+  vinInput.addEventListener("input", function () {
     if (vinInput._timeout) clearTimeout(vinInput._timeout);
-    vinInput._timeout = setTimeout(function () {
-      var vin = vinInput.value.trim();
+    vinInput._timeout = setTimeout(() => {
+      const vin = vinInput.value.trim();
       if (vin !== "") {
         addVinRecord(vin);
         vinInput.value = "";
       }
     }, 150);
-  };
+  });
 
   function addVinRecord(vin) {
-    var now = new Date();
-    var timestamp = now.toLocaleString();
+    const now = new Date();
+    const timestamp = now.toLocaleString();
 
-    var record = {
+    const record = {
       id: vinCount,
       yard: yardName,
       subYard: subYardName,
       row: rowName,
       bay: bayCount,
       slot: slotCount,
-      vin: vin,
+      vin,
       time: timestamp
     };
 
     records.push(record);
-    rebuildTableWithDeleteButton();
-
+    rebuildTable();
     vinCount++;
     slotCount++;
     bayCount++;
-    document.getElementById("bayDisplay").innerText = bayCount;
+    bayDisplay.innerText = bayCount;
     vinInput.focus();
   }
 
-  function addEmptySlot() {
-    if (!yardName || !subYardName || !rowName) {
-      alert("Please set Yard, Sub Yard, and Row first.");
-      return;
-    }
+  window.addEmptySlot = function () {
+    const now = new Date();
+    const timestamp = now.toLocaleString();
 
-    var now = new Date();
-    var timestamp = now.toLocaleString();
-
-    var record = {
+    const record = {
       id: vinCount,
       yard: yardName,
       subYard: subYardName,
@@ -234,20 +231,155 @@
     };
 
     records.push(record);
-    rebuildTableWithDeleteButton();
-
+    rebuildTable();
     vinCount++;
     slotCount++;
     bayCount++;
-    document.getElementById("bayDisplay").innerText = bayCount;
+    bayDisplay.innerText = bayCount;
     vinInput.focus();
   }
 
-  function rebuildTableWithDeleteButton() {
+  function rebuildTable() {
     tableBody.innerHTML = "";
-    records.forEach((record, index) => {
-      var row = document.createElement('tr');
-      var deleteCell = index === records.length - 1
-        ? `<button class="delete-btn" onclick="deleteRecord(${record.id})">Delete</button>`
-        : "";
-      row.innerHTML = `<td>${record.id}</td>
+    records.forEach((r, i) => {
+      const row = document.createElement("tr");
+      const deleteBtn = (i === records.length - 1) ?
+        `<button class="delete-btn" onclick="deleteRecord(${r.id})">Delete</button>` : "";
+      row.innerHTML = `
+        <td>${r.id}</td>
+        <td>${r.yard}</td>
+        <td>${r.subYard}</td>
+        <td>${r.row}</td>
+        <td>${r.bay}</td>
+        <td>${r.slot}</td>
+        <td>${r.vin}</td>
+        <td>${r.time}</td>
+        <td>${deleteBtn}</td>
+      `;
+      tableBody.appendChild(row);
+    });
+    document.getElementById('vinTable').style.display = records.length > 0 ? "table" : "none";
+  }
+  window.deleteRecord = function (id) {
+    if (records.length === 0) return;
+
+    const lastRecord = records[records.length - 1];
+    if (lastRecord.id !== id) return; // Only allow deleting the last record
+
+    records.pop();
+    vinCount--;
+    slotCount--;
+    bayCount--;
+    bayDisplay.innerText = bayCount;
+
+    rebuildTable();
+    vinInput.focus();
+  }
+
+  window.completeScanning = function () {
+    if (records.length === 0) {
+      alert("No data to export.");
+      return;
+    }
+
+    let csv = "S.No,Yard,Sub Yard,Row,Bay,Slot,VIN,Time\n";
+    for (let r of records) {
+      const vinSafe = r.vin.includes(",") ? `"${r.vin}"` : r.vin;
+      csv += `${r.id},${r.yard},${r.subYard},${r.row},${r.bay},${r.slot},${vinSafe},${r.time}\n`;
+    }
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const fileName = "VIN_Export_" + new Date().toISOString().slice(0, 10) + ".csv";
+
+    if (navigator.msSaveBlob) {
+      navigator.msSaveBlob(blob, fileName);
+    } else {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    alert("CSV exported successfully.");
+  }
+
+  window.resetAll = function (showAlert = true) {
+    mode = "";
+    yardName = "";
+    subYardName = "";
+    rowName = "";
+    bayCount = 1;
+    slotCount = 1;
+    vinCount = 1;
+    records = [];
+
+    yardInput.value = "";
+    subYardInput.value = "";
+    rowInput.value = "";
+    vinInput.value = "";
+
+    yardInput.disabled = false;
+    subYardInput.disabled = false;
+    rowInput.disabled = false;
+
+    document.getElementById("indYard").value = "";
+    document.getElementById("indBay").value = "";
+    document.getElementById("indSlot").value = "";
+    document.getElementById("indVin").value = "";
+
+    document.getElementById('scanSection').style.display = 'none';
+    document.getElementById('vinInputSection').style.display = 'none';
+    document.getElementById('vinTable').style.display = 'none';
+    document.getElementById('yardMappingSection').style.display = 'none';
+    document.getElementById('individualVinSection').style.display = 'none';
+    document.getElementById("modeSelect").disabled = false;
+    document.getElementById("modeSelect").value = "";
+    tableBody.innerHTML = "";
+    bayDisplay.innerText = "1";
+
+    if (showAlert) {
+      alert("Reset complete. Ready to start again.");
+    }
+  }
+
+  window.submitIndividualVin = function () {
+    const yard = document.getElementById("indYard").value.trim();
+    const bay = document.getElementById("indBay").value.trim();
+    const slot = document.getElementById("indSlot").value.trim();
+    const vin = document.getElementById("indVin").value.trim();
+
+    if (!yard || !bay || !slot || !vin) {
+      alert("Please fill all fields.");
+      return;
+    }
+
+    const now = new Date();
+    const timestamp = now.toLocaleString();
+
+    const record = {
+      id: records.length + 1,
+      yard: yard,
+      subYard: "-",
+      row: "-",
+      bay: bay,
+      slot: slot,
+      vin: vin,
+      time: timestamp
+    };
+
+    records.push(record);
+    rebuildTable();
+
+    document.getElementById("indYard").value = "";
+    document.getElementById("indBay").value = "";
+    document.getElementById("indSlot").value = "";
+    document.getElementById("indVin").value = "";
+    document.getElementById("indYard").focus();
+  }
+
+});
+</script>
+
