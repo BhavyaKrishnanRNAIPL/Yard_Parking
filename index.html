@@ -7,7 +7,7 @@
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
-      max-width: 600px;
+      max-width: 700px;
     }
     input, button, select {
       padding: 10px;
@@ -51,365 +51,203 @@
 </head>
 <body>
 
-  <h2>VIN Allocation (Offline)</h2>
+<h2>VIN Allocation (Offline)</h2>
 
-  <!-- Mode Selection -->
+<!-- Mode Selection -->
+<div>
+  <label>Select Mode:</label>
+  <select id="modeSelect" onchange="handleModeChange()">
+    <option value="">-- Select --</option>
+    <option value="yard">Yard Mapping</option>
+    <option value="individual">Individual VIN Parking</option>
+  </select>
+</div>
+
+<!-- Yard Mapping Section -->
+<div id="yardMappingSection" style="display:none; margin-top:20px;">
   <div>
-    <label>Select Mode:</label>
-    <select id="modeSelect" onchange="handleModeChange()">
-      <option value="">-- Select --</option>
-      <option value="yard">Yard Mapping</option>
-      <option value="individual">Individual VIN Parking</option>
-    </select>
+    <label>Enter Yard Name:</label>
+    <input type="text" id="yard" autocomplete="off" />
+    <label>Enter Sub Yard:</label>
+    <input type="text" id="subYard" autocomplete="off" />
+    <label>Enter Row Name:</label>
+    <input type="text" id="row" autocomplete="off" />
+    <button onclick="startScanning()">Start Scanning</button>
   </div>
 
-  <!-- Yard Mapping Section -->
-  <div id="yardMappingSection" style="display:none; margin-top:20px;">
-    <!-- Yard Input -->
-    <div>
-      <label>Enter Yard Name:</label>
-      <input type="text" id="yard" autocomplete="off" autocorrect="off" spellcheck="false" />
-      <button onclick="startScanning()">Start Scanning</button>
-    </div>
+  <!-- Bay Display -->
+  <div id="scanSection" style="display:none; margin-top: 15px;">
+    <label>Current Bay: <span id="bayDisplay">1</span></label>
 
-    <!-- Bay Input -->
-    <div id="scanSection" style="display:none; margin-top: 15px;">
-      <label>Enter Bay Name:</label>
-      <input type="text" id="bay" autocomplete="off" autocorrect="off" spellcheck="false" />
-      <button onclick="setBay()">Set Bay</button>
+    <div id="vinInputSection" style="display:none; margin-top: 15px;">
+      <label>Scan VIN:</label>
+      <input type="text" id="vin" class="scan-input" autocomplete="off" inputmode="none" />
 
-      <!-- VIN Scan Input -->
-      <div id="vinInputSection" style="display:none; margin-top: 15px;">
-        <label>Scan VIN:</label>
-        <input type="text" id="vin" class="scan-input" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="none" />
-        
-        <div style="margin-top:10px;">
-          <button class="empty" onclick="addEmptySlot()" style="background-color:#5bc0de; color:white;">Add Empty Slot</button>
-        </div>
-
-        <button onclick="completeScanning()" style="margin-top:10px;">Complete Scanning & Export</button>
-        <button onclick="resetAll()" style="background-color: red; color: white; margin-top:10px;">Reset All</button>
+      <div style="margin-top:10px;">
+        <button class="empty" onclick="addEmptySlot()" style="background-color:#5bc0de; color:white;">Add Empty Slot</button>
       </div>
+
+      <button onclick="completeScanning()" style="margin-top:10px;">Complete Scanning & Export</button>
+      <button onclick="resetAll()" style="background-color: red; color: white; margin-top:10px;">Reset All</button>
     </div>
   </div>
+</div>
 
-  <!-- Individual VIN Parking Section -->
-  <div id="individualVinSection" style="display:none; margin-top: 20px;">
-    <label>Yard:</label>
-    <input type="text" id="indYard" autocomplete="off" autocorrect="off" spellcheck="false" />
-    <label>Bay:</label>
-    <input type="text" id="indBay" autocomplete="off" autocorrect="off" spellcheck="false" />
-    <label>Slot:</label>
-    <input type="text" id="indSlot" autocomplete="off" autocorrect="off" spellcheck="false" />
-    <label>VIN:</label>
-    <input type="text" id="indVin" autocomplete="off" autocorrect="off" spellcheck="false" />
-    <button onclick="submitIndividualVin()" style="margin-top:10px;">Submit VIN</button>
-    <button onclick="completeScanning()" style="margin-top:10px;">Export Data</button>
-    <button onclick="resetAll()" style="background-color: red; color: white; margin-top:10px;">Reset All</button>
-  </div>
+<!-- Individual VIN Parking Section -->
+<div id="individualVinSection" style="display:none; margin-top: 20px;">
+  <label>Yard:</label>
+  <input type="text" id="indYard" autocomplete="off" />
+  <label>Bay:</label>
+  <input type="text" id="indBay" autocomplete="off" />
+  <label>Slot:</label>
+  <input type="text" id="indSlot" autocomplete="off" />
+  <label>VIN:</label>
+  <input type="text" id="indVin" autocomplete="off" />
+  <button onclick="submitIndividualVin()" style="margin-top:10px;">Submit VIN</button>
+  <button onclick="completeScanning()" style="margin-top:10px;">Export Data</button>
+  <button onclick="resetAll()" style="background-color: red; color: white; margin-top:10px;">Reset All</button>
+</div>
 
-  <!-- VIN Table -->
-  <table id="vinTable" style="display:none;">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Yard</th>
-        <th>Bay</th>
-        <th>Slot</th>
-        <th>VIN</th>
-        <th>Time</th>
-        <th>Delete</th>
-      </tr>
-    </thead>
-    <tbody id="tableBody"></tbody>
-  </table>
+<!-- VIN Table -->
+<table id="vinTable" style="display:none;">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Yard</th>
+      <th>Sub Yard</th>
+      <th>Row</th>
+      <th>Bay</th>
+      <th>Slot</th>
+      <th>VIN</th>
+      <th>Time</th>
+      <th>Delete</th>
+    </tr>
+  </thead>
+  <tbody id="tableBody"></tbody>
+</table>
 
-  <script>
-    // Variables
-    var mode = "";
-    var yardName = "";
-    var bayName = "";
-    var slotCount = 1;
-    var vinCount = 1;
-    var records = [];
+<script>
+  var mode = "";
+  var yardName = "";
+  var subYardName = "";
+  var rowName = "";
+  var bayCount = 1;
+  var slotCount = 1;
+  var vinCount = 1;
+  var records = [];
 
-    var yardInput = document.getElementById('yard');
-    var bayInput = document.getElementById('bay');
-    var vinInput = document.getElementById('vin');
-    var tableBody = document.getElementById('tableBody');
+  var yardInput = document.getElementById('yard');
+  var vinInput = document.getElementById('vin');
+  var tableBody = document.getElementById('tableBody');
 
-    // Mode select handler
-    function handleModeChange() {
-      mode = document.getElementById("modeSelect").value;
-      // Reset all on mode change
-      resetAll(false);
+  function handleModeChange() {
+    mode = document.getElementById("modeSelect").value;
+    resetAll(false);
+    document.getElementById("yardMappingSection").style.display = mode === "yard" ? "block" : "none";
+    document.getElementById("individualVinSection").style.display = mode === "individual" ? "block" : "none";
+    if (mode) {
+      document.getElementById("modeSelect").disabled = true;
+    }
+  }
 
-      document.getElementById("yardMappingSection").style.display = mode === "yard" ? "block" : "none";
-      document.getElementById("individualVinSection").style.display = mode === "individual" ? "block" : "none";
+  function startScanning() {
+    yardName = yardInput.value.trim();
+    subYardName = document.getElementById("subYard").value.trim();
+    rowName = document.getElementById("row").value.trim();
 
-      if(mode) {
-        // Disable mode selector after choice
-        document.getElementById("modeSelect").disabled = true;
-      }
+    if (!yardName || !subYardName || !rowName) {
+      alert("Please enter Yard, Sub Yard and Row.");
+      return;
     }
 
-    // Start scanning yard mapping mode
-    function startScanning() {
-      yardName = yardInput.value.trim();
-      if (!yardName) {
-        alert("Please enter Yard name.");
-        return;
+    yardInput.disabled = true;
+    document.getElementById("subYard").disabled = true;
+    document.getElementById("row").disabled = true;
+
+    bayCount = 1;
+    slotCount = 1;
+    document.getElementById("bayDisplay").innerText = bayCount;
+
+    document.getElementById('scanSection').style.display = 'block';
+    document.getElementById('vinInputSection').style.display = 'block';
+    document.getElementById('vinTable').style.display = 'table';
+    vinInput.focus();
+  }
+
+  vinInput.oninput = function () {
+    var vinVal = vinInput.value.trim();
+    if (vinVal === "") return;
+
+    if (vinInput._timeout) clearTimeout(vinInput._timeout);
+    vinInput._timeout = setTimeout(function () {
+      var vin = vinInput.value.trim();
+      if (vin !== "") {
+        addVinRecord(vin);
+        vinInput.value = "";
       }
-      yardInput.disabled = true;
-      document.getElementById('scanSection').style.display = 'block';
-      bayInput.focus();
-    }
+    }, 150);
+  };
 
-    // Set bay name and prepare for VIN input
-    function setBay() {
-      bayName = bayInput.value.trim();
-      if (!bayName) {
-        alert("Please enter Bay name.");
-        return;
-      }
-      slotCount = 1;
-      vinInput.value = "";
-      document.getElementById('vinInputSection').style.display = 'block';
-      document.getElementById('vinTable').style.display = 'table';
-      vinInput.focus();
-    }
+  function addVinRecord(vin) {
+    var now = new Date();
+    var timestamp = now.toLocaleString();
 
-    // VIN auto-scanning logic with delay
-    vinInput.oninput = function () {
-      var vinVal = vinInput.value.trim();
-      if(vinVal === "") return;
-
-      // Clear previous timeout if any
-      if(vinInput._timeout) clearTimeout(vinInput._timeout);
-
-      vinInput._timeout = setTimeout(function() {
-        var vin = vinInput.value.trim();
-        if (vin !== "") {
-          addVinRecord(vin);
-          vinInput.value = "";
-        }
-      }, 150);
+    var record = {
+      id: vinCount,
+      yard: yardName,
+      subYard: subYardName,
+      row: rowName,
+      bay: bayCount,
+      slot: slotCount,
+      vin: vin,
+      time: timestamp
     };
 
-    // Add VIN record in yard mapping mode
-    function addVinRecord(vin) {
-      var now = new Date();
-      var timestamp = now.toLocaleString();
+    records.push(record);
+    rebuildTableWithDeleteButton();
 
-      var record = {
-        id: vinCount,
-        yard: yardName,
-        bay: bayName,
-        slot: slotCount,
-        vin: vin,
-        time: timestamp
-      };
+    vinCount++;
+    slotCount++;
+    bayCount++;
+    document.getElementById("bayDisplay").innerText = bayCount;
+    vinInput.focus();
+  }
 
-      records.push(record);
-      rebuildTableWithDeleteButton();
-
-      slotCount++;
-      vinCount++;
-      vinInput.focus();
+  function addEmptySlot() {
+    if (!yardName || !subYardName || !rowName) {
+      alert("Please set Yard, Sub Yard, and Row first.");
+      return;
     }
 
-    // Add a row to the HTML table with delete button only on last record
-    function rebuildTableWithDeleteButton() {
-      tableBody.innerHTML = "";
+    var now = new Date();
+    var timestamp = now.toLocaleString();
 
-      records.forEach((record, index) => {
-        var row = document.createElement('tr');
-        var deleteCell = "";
+    var record = {
+      id: vinCount,
+      yard: yardName,
+      subYard: subYardName,
+      row: rowName,
+      bay: bayCount,
+      slot: slotCount,
+      vin: "(Empty)",
+      time: timestamp
+    };
 
-        // Show delete button only for the last record
-        if(index === records.length -1) {
-          deleteCell = `<button class="delete-btn" onclick="deleteRecord(${record.id})">Delete</button>`;
-        }
+    records.push(record);
+    rebuildTableWithDeleteButton();
 
-        row.innerHTML = `<td>${record.id}</td>
-                         <td>${record.yard}</td>
-                         <td>${record.bay}</td>
-                         <td>${record.slot}</td>
-                         <td>${record.vin}</td>
-                         <td>${record.time}</td>
-                         <td>${deleteCell}</td>`;
+    vinCount++;
+    slotCount++;
+    bayCount++;
+    document.getElementById("bayDisplay").innerText = bayCount;
+    vinInput.focus();
+  }
 
-        tableBody.appendChild(row);
-      });
-      document.getElementById("vinTable").style.display = records.length > 0 ? "table" : "none";
-    }
-
-    // Add empty slot record
-    function addEmptySlot() {
-      if (!yardName || !bayName) {
-        alert("Please set Yard and Bay first.");
-        return;
-      }
-
-      var now = new Date();
-      var timestamp = now.toLocaleString();
-
-      var record = {
-        id: vinCount,
-        yard: yardName,
-        bay: bayName,
-        slot: slotCount,
-        vin: "(Empty)",
-        time: timestamp
-      };
-
-      records.push(record);
-      rebuildTableWithDeleteButton();
-
-      slotCount++;
-      vinCount++;
-      vinInput.focus();
-    }
-
-    // Submit single VIN in individual parking mode
-    function submitIndividualVin() {
-      var yard = document.getElementById("indYard").value.trim();
-      var bay = document.getElementById("indBay").value.trim();
-      var slot = document.getElementById("indSlot").value.trim();
-      var vin = document.getElementById("indVin").value.trim();
-
-      if (!yard || !bay || !slot || !vin) {
-        alert("Please fill all fields.");
-        return;
-      }
-
-      var now = new Date();
-      var timestamp = now.toLocaleString();
-
-      var record = {
-        id: records.length + 1,
-        yard: yard,
-        bay: bay,
-        slot: slot,
-        vin: vin,
-        time: timestamp
-      };
-
-      records.push(record);
-      rebuildTableWithDeleteButton();
-
-      // Clear inputs after adding
-      document.getElementById("indYard").value = "";
-      document.getElementById("indBay").value = "";
-      document.getElementById("indSlot").value = "";
-      document.getElementById("indVin").value = "";
-
-      // Focus the first input for quick entry
-      document.getElementById("indYard").focus();
-    }
-
-    // Delete record function for only last record
-    function deleteRecord(id) {
-      if(records.length === 0) return;
-
-      var lastRecord = records[records.length - 1];
-      if(lastRecord.id !== id) return; // Only allow delete of last record
-
-      var deletedRecord = records.pop();
-
-      // Rebuild table without last record
-      rebuildTableWithDeleteButton();
-
-      if (mode === 'yard') {
-        // Set slotCount to deleted slot, so next scan uses same slot
-        slotCount = deletedRecord.slot;
-      }
-
-      vinCount = records.length + 1;
-
-      if(mode === 'yard') {
-        vinInput.focus();
-      } else if(mode === 'individual') {
-        // Focus first input in individual mode after delete
-        document.getElementById("indYard").focus();
-      }
-    }
-
-    // Export CSV (works for both modes)
-    function completeScanning() {
-      if (records.length === 0) {
-        alert("No data to export.");
-        return;
-      }
-
-      var csv = "S.No,Yard,Bay,Slot,VIN,Time\n";
-      for (var i = 0; i < records.length; i++) {
-        var r = records[i];
-        // Escape commas if needed (basic)
-        var vinSafe = r.vin.includes(",") ? `"${r.vin}"` : r.vin;
-        csv += r.id + "," + r.yard + "," + r.bay + "," + r.slot + "," + vinSafe + "," + r.time + "\n";
-      }
-
-      var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      var link = document.createElement("a");
-      var fileName = "VIN_Export_" + new Date().toISOString().slice(0,10) + ".csv";
-
-      if (navigator.msSaveBlob) {
-        navigator.msSaveBlob(blob, fileName);
-      } else {
-        var url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", fileName);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-
-      alert("CSV exported successfully.");
-    }
-
-    // Reset everything - pass true if triggered by reset button, false if from mode change
-    function resetAll(showAlert=true) {
-      // Reset variables
-      yardName = "";
-      bayName = "";
-      slotCount = 1;
-      vinCount = 1;
-      records = [];
-
-      // Clear all inputs
-      yardInput.value = "";
-      bayInput.value = "";
-      vinInput.value = "";
-      document.getElementById("indYard").value = "";
-      document.getElementById("indBay").value = "";
-      document.getElementById("indSlot").value = "";
-      document.getElementById("indVin").value = "";
-
-      // Enable inputs
-      yardInput.disabled = false;
-      bayInput.disabled = false;
-
-      // Show/hide sections
-      document.getElementById('scanSection').style.display = 'none';
-      document.getElementById('vinInputSection').style.display = 'none';
-      document.getElementById('vinTable').style.display = 'none';
-
-      // Clear table body
-      tableBody.innerHTML = "";
-
-      // Reset mode selector only if showAlert is true (not during mode switch)
-      if(showAlert) {
-        // Enable mode selector again for new session
-        document.getElementById("modeSelect").disabled = false;
-        document.getElementById("modeSelect").value = "";
-        document.getElementById("yardMappingSection").style.display = "none";
-        document.getElementById("individualVinSection").style.display = "none";
-
-        alert("Reset complete. Ready to start again.");
-      }
-    }
-  </script>
-
-</body>
-</html>
+  function rebuildTableWithDeleteButton() {
+    tableBody.innerHTML = "";
+    records.forEach((record, index) => {
+      var row = document.createElement('tr');
+      var deleteCell = index === records.length - 1
+        ? `<button class="delete-btn" onclick="deleteRecord(${record.id})">Delete</button>`
+        : "";
+      row.innerHTML = `<td>${record.id}</td>
