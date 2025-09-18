@@ -6,378 +6,985 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      margin: 20px;
-      max-width: 700px;
+      margin: 10px;
+      background: #f0f0f0;
+      color: #333;
     }
+    
+    .container {
+      background: white;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      border: 1px solid #ddd;
+    }
+    
+    h2 {
+      color: #2c3e50;
+      margin-bottom: 15px;
+      text-align: center;
+      font-size: 18px;
+    }
+    
+    label {
+      font-weight: bold;
+      display: block;
+      margin-top: 10px;
+    }
+    
     input, button, select {
       padding: 10px;
       margin: 5px 0;
       width: 100%;
       font-size: 16px;
+      border: 2px solid #ccc;
+      border-radius: 4px;
+      -webkit-box-sizing: border-box;
+      -moz-box-sizing: border-box;
       box-sizing: border-box;
     }
+    
+    input:focus, select:focus {
+      border-color: #3498db;
+      outline: none;
+    }
+    
+    button {
+      background: #3498db;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    
+    .btn-success {
+      background: #27ae60;
+    }
+    
+    .btn-danger {
+      background: #e74c3c;
+    }
+    
+    .btn-warning {
+      background: #f39c12;
+    }
+    
+    .btn-info {
+      background: #17a2b8;
+    }
+    
+    .direction-btn {
+      width: 48%;
+      display: inline-block;
+      margin: 2px 1%;
+    }
+    
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 20px;
+      margin-top: 15px;
+      font-size: 12px;
     }
+    
     th, td {
       border: 1px solid #ddd;
-      padding: 8px;
+      padding: 5px;
       text-align: center;
     }
+    
+    th {
+      background: #34495e;
+      color: white;
+    }
+    
     .scan-input {
       font-weight: bold;
       font-size: 18px;
+      border-color: #27ae60;
     }
-    button.skip, button.empty {
-      width: 48%;
-      display: inline-block;
-      margin: 5px 1%;
-      font-weight: bold;
+    
+    .status-info {
+      background: #e8f5e8;
+      border: 1px solid #27ae60;
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+      text-align: center;
     }
-    button.delete-btn {
-      background-color: #d9534f;
+    
+    .delete-btn {
+      background: #e74c3c;
       color: white;
       border: none;
-      padding: 5px 10px;
+      padding: 4px 8px;
       cursor: pointer;
       border-radius: 3px;
+      font-size: 11px;
     }
-    button.delete-btn:hover {
-      background-color: #c9302c;
+    
+    .hidden {
+      display: none;
+    }
+    
+    .stats {
+      margin: 10px 0;
+    }
+    
+    .stat-item {
+      text-align: center;
+      padding: 8px;
+      background: #ecf0f1;
+      border-radius: 4px;
+      margin: 5px 0;
+    }
+    
+    .stat-value {
+      font-size: 18px;
+      font-weight: bold;
+      color: #2c3e50;
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: #7f8c8d;
+    }
+
+    .message {
+      padding: 8px;
+      border-radius: 4px;
+      margin: 5px 0;
+      font-size: 14px;
+    }
+    
+    .error-msg {
+      background: #ffebee;
+      border: 1px solid #f44336;
+      color: #c62828;
+    }
+
+    .success-msg {
+      background: #e8f5e8;
+      border: 1px solid #4caf50;
+      color: #2e7d32;
     }
   </style>
+
+  <script>
+    // Global state variables
+    var appState = {
+      mode: "",
+      yardName: "",
+      subYardName: "",
+      rowName: "",
+      direction: "",
+      bayCount: 1,
+      slotCount: 1,
+      vinCount: 1,
+      records: [],
+      isScanning: false,
+      startBay: 1,
+      maxBayReached: 1
+    };
+
+    var vinInputTimeout;
+
+    // Handle mode selection
+    function handleModeChange() {
+      var modeSelect = document.getElementById("modeSelect");
+      appState.mode = modeSelect.value;
+      
+      var yardSection = document.getElementById("yardMappingSection");
+      var individualSection = document.getElementById("individualVinSection");
+      
+      // Hide all sections first
+      yardSection.className = "container hidden";
+      individualSection.className = "container hidden";
+      
+      // Show selected section
+      if (appState.mode === "yard") {
+        yardSection.className = "container";
+      } else if (appState.mode === "individual") {
+        individualSection.className = "container";
+      }
+      
+      if (appState.mode) {
+        modeSelect.disabled = true;
+      }
+    }
+
+    // Handle VIN input with timeout
+    function handleVinInput() {
+      var vinInput = document.getElementById('vin');
+      if (vinInputTimeout) clearTimeout(vinInputTimeout);
+      
+      vinInputTimeout = setTimeout(function() {
+        var inputValue = vinInput.value.trim().toUpperCase();
+        if (inputValue !== "") {
+          var extractedVin = extractVIN(inputValue);
+          if (extractedVin && validateVIN(extractedVin)) {
+            addVinRecord(extractedVin);
+            vinInput.value = "";
+            showMessage("VIN " + extractedVin + " added successfully", "success");
+          } else if (inputValue !== "") {
+            showMessage("Invalid VIN format or unable to extract VIN from scanned data", "error");
+          }
+        }
+      }, 300);
+    }
+
+    // Extract VIN from scanned data
+    function extractVIN(scannedData) {
+      try {
+        // Pattern: looks for 17 characters after #
+        var hashIndex = scannedData.indexOf('#');
+        if (hashIndex !== -1 && scannedData.length >= hashIndex + 18) {
+          var possibleVin = scannedData.substring(hashIndex + 1, hashIndex + 18);
+          if (validateVIN(possibleVin)) {
+            return possibleVin.toUpperCase();
+          }
+        }
+        
+        // If no # pattern found, check if the input itself is a valid 17-char VIN
+        if (scannedData.length === 17 && validateVIN(scannedData)) {
+          return scannedData;
+        }
+        
+        // Try to find any 17-character sequence that looks like a VIN
+        for (var i = 0; i <= scannedData.length - 17; i++) {
+          var possibleVin = scannedData.substring(i, i + 17);
+          if (validateVIN(possibleVin)) {
+            return possibleVin.toUpperCase();
+          }
+        }
+        
+        return null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // Validate VIN format
+    function validateVIN(vin) {
+      if (!vin || vin.length !== 17) return false;
+      
+      // Check for invalid characters (I, O, Q not allowed in VIN)
+      var invalidChars = ['I', 'O', 'Q'];
+      for (var i = 0; i < invalidChars.length; i++) {
+        if (vin.indexOf(invalidChars[i]) !== -1) {
+          return false;
+        }
+      }
+      
+      // Check if all characters are alphanumeric
+      var validChars = 'ABCDEFGHJKLMNPRSTUVWXYZ0123456789';
+      for (var i = 0; i < vin.length; i++) {
+        if (validChars.indexOf(vin.charAt(i)) === -1) {
+          return false;
+        }
+      }
+      
+      return true;
+    }
+
+    // Select direction
+    function selectDirection(dir) {
+      appState.direction = dir;
+      
+      var currentDirection = document.getElementById('currentDirection');
+      var startBay = document.getElementById('startBay');
+      var forwardBtn = document.getElementById('forwardBtn');
+      var reverseBtn = document.getElementById('reverseBtn');
+      var startScanBtn = document.getElementById('startScanBtn');
+      var directionDisplay = document.getElementById('directionDisplay');
+      
+      currentDirection.innerHTML = dir === 'F' ? 'Forward' : 'Reverse';
+      
+      // Update button styles
+      if (dir === 'F') {
+        forwardBtn.style.backgroundColor = '#27ae60';
+        reverseBtn.style.backgroundColor = '#3498db';
+        appState.startBay = 1;
+      } else {
+        reverseBtn.style.backgroundColor = '#27ae60';
+        forwardBtn.style.backgroundColor = '#3498db';
+        appState.startBay = 999; // Start high for reverse
+      }
+      
+      appState.bayCount = appState.startBay;
+      startBay.innerHTML = appState.startBay;
+      
+      // Show direction display and enable start button
+      directionDisplay.className = "status-info";
+      startScanBtn.disabled = false;
+    }
+
+    // Start scanning process
+    function startScanning() {
+      var yard = document.getElementById('yard');
+      var subYard = document.getElementById('subYard');
+      var row = document.getElementById('row');
+
+      appState.yardName = yard.value.trim();
+      appState.subYardName = subYard.value.trim();
+      appState.rowName = row.value.trim();
+
+      if (!appState.yardName || !appState.subYardName || !appState.rowName) {
+        showMessage("Please enter all required fields: Yard, Sub Yard, and Row.", "error");
+        return;
+      }
+
+      if (!appState.direction) {
+        showMessage("Please select direction (Forward or Reverse).", "error");
+        return;
+      }
+
+      // Disable configuration inputs
+      yard.disabled = true;
+      subYard.disabled = true;
+      row.disabled = true;
+      document.getElementById('forwardBtn').disabled = true;
+      document.getElementById('reverseBtn').disabled = true;
+
+      // Reset counters
+      appState.slotCount = 1;
+      appState.isScanning = true;
+      appState.maxBayReached = appState.startBay;
+
+      // Show scanning interface
+      var scanSection = document.getElementById('scanSection');
+      var vinTable = document.getElementById('vinTable');
+      var statsSection = document.getElementById('statsSection');
+      
+      scanSection.className = "";
+      vinTable.className = "";
+      statsSection.className = "container";
+
+      updateDisplay();
+      
+      var vinInput = document.getElementById('vin');
+      if (vinInput) {
+        vinInput.focus();
+      }
+
+      showMessage("Scanning started! Begin scanning VINs or marking empty slots.", "success");
+    }
+
+    // Add VIN record
+    function addVinRecord(vin) {
+      var now = new Date();
+      var timestamp = formatDateTime(now);
+
+      var record = {
+        id: appState.vinCount,
+        yard: appState.yardName,
+        subYard: appState.subYardName,
+        row: appState.rowName,
+        bay: appState.bayCount,
+        slot: appState.slotCount,
+        vin: vin,
+        time: timestamp,
+        isEmpty: false
+      };
+
+      appState.records.push(record);
+      incrementCounters();
+      rebuildTable();
+      updateStatistics();
+      
+      var vinInput = document.getElementById('vin');
+      if (vinInput) {
+        vinInput.focus();
+      }
+    }
+
+    // Add empty slot
+    function addEmptySlot() {
+      var now = new Date();
+      var timestamp = formatDateTime(now);
+
+      var record = {
+        id: appState.vinCount,
+        yard: appState.yardName,
+        subYard: appState.subYardName,
+        row: appState.rowName,
+        bay: appState.bayCount,
+        slot: appState.slotCount,
+        vin: "(Empty)",
+        time: timestamp,
+        isEmpty: true
+      };
+
+      appState.records.push(record);
+      incrementCounters();
+      rebuildTable();
+      updateStatistics();
+      
+      var vinInput = document.getElementById('vin');
+      if (vinInput) {
+        vinInput.focus();
+      }
+
+      var prevBay = appState.direction === 'F' ? appState.bayCount - 1 : appState.bayCount + 1;
+      showMessage("Empty slot marked in Bay " + prevBay, "success");
+    }
+
+    // Next Row functionality
+    function nextRow() {
+      // Calculate range for current row
+      var rowRecords = [];
+      for (var i = 0; i < appState.records.length; i++) {
+        if (appState.records[i].row === appState.rowName) {
+          rowRecords.push(appState.records[i].bay);
+        }
+      }
+      
+      if (rowRecords.length > 0) {
+        var minBay = Math.min.apply(Math, rowRecords);
+        var maxBay = Math.max.apply(Math, rowRecords);
+        showMessage("Row completed. Bay range: " + minBay + " to " + maxBay, "success");
+      }
+
+      // Reset for new row
+      var yard = document.getElementById('yard');
+      var subYard = document.getElementById('subYard');
+      var row = document.getElementById('row');
+      
+      yard.disabled = false;
+      subYard.disabled = false;
+      row.disabled = false;
+      row.value = "";
+      
+      document.getElementById('forwardBtn').disabled = false;
+      document.getElementById('reverseBtn').disabled = false;
+      document.getElementById('forwardBtn').style.backgroundColor = '#3498db';
+      document.getElementById('reverseBtn').style.backgroundColor = '#3498db';
+      document.getElementById('directionDisplay').className = "status-info hidden";
+      document.getElementById('startScanBtn').disabled = true;
+      
+      // Hide scanning section
+      document.getElementById('scanSection').className = "hidden";
+      
+      appState.isScanning = false;
+      appState.direction = "";
+      row.focus();
+    }
+
+    // Increment counters based on direction
+    function incrementCounters() {
+      appState.vinCount++;
+      appState.slotCount++;
+      
+      if (appState.direction === 'F') {
+        appState.bayCount++;
+        if (appState.bayCount > appState.maxBayReached) {
+          appState.maxBayReached = appState.bayCount;
+        }
+      } else {
+        appState.bayCount--;
+        if (appState.bayCount < appState.maxBayReached) {
+          appState.maxBayReached = appState.bayCount;
+        }
+      }
+      
+      updateDisplay();
+    }
+
+    // Update display elements
+    function updateDisplay() {
+      var bayDisplay = document.getElementById('bayDisplay');
+      var totalScanned = document.getElementById('totalScanned');
+      var emptySlots = document.getElementById('emptySlots');
+      
+      if (bayDisplay) bayDisplay.innerHTML = appState.bayCount;
+      if (totalScanned) totalScanned.innerHTML = appState.records.length;
+      
+      var emptyCount = 0;
+      for (var i = 0; i < appState.records.length; i++) {
+        if (appState.records[i].isEmpty) {
+          emptyCount++;
+        }
+      }
+      if (emptySlots) emptySlots.innerHTML = emptyCount;
+    }
+
+    // Update statistics
+    function updateStatistics() {
+      var totalRecords = document.getElementById('totalRecords');
+      var vinRecords = document.getElementById('vinRecords');
+      var emptyRecords = document.getElementById('emptyRecords');
+      
+      var total = appState.records.length;
+      var vinCount = 0;
+      var emptyCount = 0;
+      
+      for (var i = 0; i < appState.records.length; i++) {
+        if (appState.records[i].isEmpty) {
+          emptyCount++;
+        } else {
+          vinCount++;
+        }
+      }
+
+      if (totalRecords) totalRecords.innerHTML = total;
+      if (vinRecords) vinRecords.innerHTML = vinCount;
+      if (emptyRecords) emptyRecords.innerHTML = emptyCount;
+    }
+
+    // Format date time
+    function formatDateTime(date) {
+      var year = date.getFullYear();
+      var month = date.getMonth() + 1;
+      var day = date.getDate();
+      var hours = date.getHours();
+      var minutes = date.getMinutes();
+      var seconds = date.getSeconds();
+      
+      // Pad with zeros
+      if (month < 10) month = '0' + month;
+      if (day < 10) day = '0' + day;
+      if (hours < 10) hours = '0' + hours;
+      if (minutes < 10) minutes = '0' + minutes;
+      if (seconds < 10) seconds = '0' + seconds;
+      
+      return year + '-' + month + '-' + day + ' ' + hours + ':' + minutes + ':' + seconds;
+    }
+
+    // Rebuild table
+    function rebuildTable() {
+      var tableBody = document.getElementById('tableBody');
+      if (!tableBody) return;
+      
+      tableBody.innerHTML = "";
+      
+      for (var i = 0; i < appState.records.length; i++) {
+        var record = appState.records[i];
+        var row = document.createElement("tr");
+        var isLastRecord = i === appState.records.length - 1;
+        var deleteBtn = isLastRecord ?
+          '<button class="delete-btn" onclick="deleteRecord(' + record.id + ')">Delete</button>' : 
+          '<span style="color: #bdc3c7;">Locked</span>';
+        
+        // Color code rows based on content
+        if (record.isEmpty) {
+          row.style.backgroundColor = "#fff3cd";
+        }
+        
+        row.innerHTML = 
+          '<td>' + record.id + '</td>' +
+          '<td>' + record.yard + '</td>' +
+          '<td>' + record.subYard + '</td>' +
+          '<td>' + record.row + '</td>' +
+          '<td>' + record.bay + '</td>' +
+          '<td>' + record.slot + '</td>' +
+          '<td style="font-weight: ' + (record.isEmpty ? 'normal' : 'bold') + '; color: ' + (record.isEmpty ? '#856404' : '#155724') + '">' + record.vin + '</td>' +
+          '<td style="font-size: 11px;">' + record.time + '</td>' +
+          '<td>' + deleteBtn + '</td>';
+          
+        tableBody.appendChild(row);
+      }
+      
+      var vinTable = document.getElementById('vinTable');
+      if (vinTable) {
+        if (appState.records.length === 0) {
+          vinTable.className = "hidden";
+        } else {
+          vinTable.className = "";
+        }
+      }
+    }
+
+    // Delete record (only last one)
+    function deleteRecord(id) {
+      if (appState.records.length === 0) return;
+
+      var lastRecord = appState.records[appState.records.length - 1];
+      if (lastRecord.id !== id) {
+        showMessage("Only the most recent record can be deleted.", "error");
+        return;
+      }
+
+      appState.records.pop();
+      appState.vinCount--;
+      appState.slotCount--;
+      
+      if (appState.direction === 'F') {
+        appState.bayCount--;
+      } else {
+        appState.bayCount++;
+      }
+
+      updateDisplay();
+      updateStatistics();
+      rebuildTable();
+      
+      var vinInput = document.getElementById('vin');
+      if (vinInput) {
+        vinInput.focus();
+      }
+
+      showMessage("Last record deleted successfully", "success");
+    }
+
+    // Complete scanning and export
+    function completeScanning() {
+      if (appState.records.length === 0) {
+        showMessage("No data to export. Please scan some VINs first.", "error");
+        return;
+      }
+
+      // Create CSV content
+      var csv = "S.No,Yard,Sub Yard,Row,Bay,Slot,VIN,Timestamp\n";
+      
+      for (var i = 0; i < appState.records.length; i++) {
+        var record = appState.records[i];
+        var vinSafe = record.vin.indexOf(",") !== -1 ? '"' + record.vin + '"' : record.vin;
+        csv += record.id + ',' + record.yard + ',' + record.subYard + ',' + record.row + ',' + 
+               record.bay + ',' + record.slot + ',' + vinSafe + ',' + record.time + '\n';
+      }
+
+      // Download CSV file
+      try {
+        var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        var link = document.createElement("a");
+        var now = new Date();
+        var dateStr = now.getFullYear() + '-' + 
+                      (now.getMonth() + 1 < 10 ? '0' : '') + (now.getMonth() + 1) + '-' + 
+                      (now.getDate() < 10 ? '0' : '') + now.getDate();
+        var fileName = "VIN_Export_" + appState.yardName + "_" + dateStr + "_" + Date.now() + ".csv";
+
+        if (navigator.msSaveBlob) {
+          navigator.msSaveBlob(blob, fileName);
+        } else if (window.URL && window.URL.createObjectURL) {
+          var url = window.URL.createObjectURL(blob);
+          link.setAttribute("href", url);
+          link.setAttribute("download", fileName);
+          link.style.visibility = "hidden";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        }
+
+        showMessage("CSV exported successfully! Records: " + appState.records.length, "success");
+      } catch (e) {
+        showMessage("Export failed. Browser may not support file download.", "error");
+      }
+    }
+
+    // Submit individual VIN
+    function submitIndividualVin() {
+      var yard = document.getElementById("indYard").value.trim();
+      var bay = document.getElementById("indBay").value.trim();
+      var slot = document.getElementById("indSlot").value.trim();
+      var vinInput = document.getElementById("indVin").value.trim().toUpperCase();
+
+      if (!yard || !bay || !slot || !vinInput) {
+        showMessage("Please fill all fields.", "error", "ind");
+        return;
+      }
+
+      var extractedVin = extractVIN(vinInput);
+      if (!extractedVin || !validateVIN(extractedVin)) {
+        showMessage("Invalid VIN format or unable to extract VIN from input.", "error", "ind");
+        document.getElementById("indVin").focus();
+        return;
+      }
+
+      var now = new Date();
+      var timestamp = formatDateTime(now);
+
+      var record = {
+        id: appState.records.length + 1,
+        yard: yard,
+        subYard: "-",
+        row: "-",
+        bay: bay,
+        slot: slot,
+        vin: extractedVin,
+        time: timestamp,
+        isEmpty: false
+      };
+
+      appState.records.push(record);
+      rebuildTable();
+      updateStatistics();
+
+      // Clear form and show table/stats
+      document.getElementById("indYard").value = "";
+      document.getElementById("indBay").value = "";
+      document.getElementById("indSlot").value = "";
+      document.getElementById("indVin").value = "";
+      document.getElementById("indYard").focus();
+
+      var vinTable = document.getElementById('vinTable');
+      var statsSection = document.getElementById('statsSection');
+      if (vinTable) vinTable.className = "";
+      if (statsSection) statsSection.className = "container";
+
+      showMessage("VIN " + extractedVin + " added successfully!", "success", "ind");
+    }
+
+    // Reset everything
+    function resetAll() {
+      // Reset state
+      appState = {
+        mode: "",
+        yardName: "",
+        subYardName: "",
+        rowName: "",
+        direction: "",
+        bayCount: 1,
+        slotCount: 1,
+        vinCount: 1,
+        records: [],
+        isScanning: false,
+        startBay: 1,
+        maxBayReached: 1
+      };
+
+      // Clear all inputs
+      var inputs = ['yard', 'subYard', 'row', 'vin', 'indYard', 'indBay', 'indSlot', 'indVin'];
+      for (var i = 0; i < inputs.length; i++) {
+        var element = document.getElementById(inputs[i]);
+        if (element) {
+          element.value = "";
+          element.disabled = false;
+        }
+      }
+
+      // Reset UI
+      var modeSelect = document.getElementById("modeSelect");
+      if (modeSelect) {
+        modeSelect.disabled = false;
+        modeSelect.value = "";
+      }
+
+      // Hide all sections
+      var sectionsToHide = [
+        'scanSection', 
+        'vinTable', 
+        'yardMappingSection', 
+        'individualVinSection', 
+        'statsSection', 
+        'directionDisplay'
+      ];
+      
+      for (var i = 0; i < sectionsToHide.length; i++) {
+        var element = document.getElementById(sectionsToHide[i]);
+        if (element) {
+          if (sectionsToHide[i] === 'yardMappingSection' || sectionsToHide[i] === 'individualVinSection' || sectionsToHide[i] === 'statsSection') {
+            element.className = "container hidden";
+          } else {
+            element.className = "hidden";
+          }
+        }
+      }
+
+      // Reset button states
+      var forwardBtn = document.getElementById('forwardBtn');
+      var reverseBtn = document.getElementById('reverseBtn');
+      var startScanBtn = document.getElementById('startScanBtn');
+      
+      if (forwardBtn) {
+        forwardBtn.disabled = false;
+        forwardBtn.style.backgroundColor = '#3498db';
+      }
+      if (reverseBtn) {
+        reverseBtn.disabled = false;
+        reverseBtn.style.backgroundColor = '#3498db';
+      }
+      if (startScanBtn) {
+        startScanBtn.disabled = true;
+      }
+
+      // Clear table and messages
+      var tableBody = document.getElementById('tableBody');
+      if (tableBody) {
+        tableBody.innerHTML = "";
+      }
+      
+      var bayDisplay = document.getElementById('bayDisplay');
+      if (bayDisplay) {
+        bayDisplay.innerHTML = "1";
+      }
+
+      var messageArea = document.getElementById('messageArea');
+      if (messageArea) {
+        messageArea.innerHTML = "";
+      }
+
+      var indMessageArea = document.getElementById('indMessageArea');
+      if (indMessageArea) {
+        indMessageArea.innerHTML = "";
+      }
+
+      // Reset statistics
+      updateStatistics();
+      updateDisplay();
+
+      alert("System reset complete. Ready to start again!");
+    }
+
+    // Show message function
+    function showMessage(message, type, area) {
+      var targetArea;
+      if (area === "ind") {
+        targetArea = document.getElementById('indMessageArea');
+      } else {
+        targetArea = document.getElementById('messageArea');
+      }
+      
+      if (!targetArea) return;
+
+      var className = type === "error" ? "message error-msg" : "message success-msg";
+      targetArea.innerHTML = '<div class="' + className + '">' + message + '</div>';
+
+      // Clear message after 5 seconds
+      setTimeout(function() {
+        if (targetArea) {
+          targetArea.innerHTML = "";
+        }
+      }, 5000);
+    }
+  </script>
 </head>
 <body>
 
-<h2>VIN Allocation (Offline)</h2>
+<div class="container">
+  <h2>VIN Scanner & Allocation System</h2>
 
-<!-- Mode Selection -->
-<div>
-  <label>Select Mode:</label>
-  <select id="modeSelect">
-    <option value="">-- Select --</option>
-    <option value="yard">Yard Mapping</option>
-    <option value="individual">Individual VIN Parking</option>
-  </select>
-</div>
-
-<!-- Yard Mapping Section -->
-<div id="yardMappingSection" style="display:none; margin-top:20px;">
+  <!-- Mode Selection -->
   <div>
-    <label>Enter Yard Name:</label>
-    <input type="text" id="yard" autocomplete="off" />
-    <label>Enter Sub Yard:</label>
-    <input type="text" id="subYard" autocomplete="off" />
-    <label>Enter Row Name:</label>
-    <input type="text" id="row" autocomplete="off" />
-    <button onclick="startScanning()">Start Scanning</button>
+    <label>Select Operating Mode:</label>
+    <select id="modeSelect" onchange="handleModeChange()">
+      <option value="">-- Choose Mode --</option>
+      <option value="yard">Yard Mapping (Sequential Scanning)</option>
+      <option value="individual">Individual VIN Parking</option>
+    </select>
   </div>
 
-  <!-- Bay Display -->
-  <div id="scanSection" style="display:none; margin-top: 15px;">
-    <label>Current Bay: <span id="bayDisplay">1</span></label>
+  <!-- Yard Mapping Section -->
+  <div id="yardMappingSection" class="container hidden">
+    <h3>Yard Mapping Configuration</h3>
+    
+    <label>Yard Name:</label>
+    <input type="text" id="yard" placeholder="e.g., North Yard" />
+    
+    <label>Sub Yard:</label>
+    <input type="text" id="subYard" placeholder="e.g., Section A" />
+    
+    <label>Row Name:</label>
+    <input type="text" id="row" placeholder="e.g., Row 1" />
+    
+    <!-- Direction Selection -->
+    <label>Select Direction:</label>
+    <div>
+      <button type="button" id="forwardBtn" class="direction-btn" onclick="selectDirection('F')">F (Forward)</button>
+      <button type="button" id="reverseBtn" class="direction-btn" onclick="selectDirection('R')">R (Reverse)</button>
+    </div>
+    
+    <div id="directionDisplay" class="status-info hidden">
+      Direction: <span id="currentDirection">-</span> | Start Bay: <span id="startBay">1</span>
+    </div>
+    
+    <button onclick="startScanning()" class="btn-success" id="startScanBtn" disabled="disabled">Start Sequential Scanning</button>
 
-    <div id="vinInputSection" style="display:none; margin-top: 15px;">
-      <label>Scan VIN:</label>
-      <input type="text" id="vin" class="scan-input" autocomplete="off" inputmode="none" />
-
-      <div style="margin-top:10px;">
-        <button class="empty" onclick="addEmptySlot()" style="background-color:#5bc0de; color:white;">Add Empty Slot</button>
+    <!-- Scanning Controls -->
+    <div id="scanSection" class="hidden">
+      <div class="status-info">
+        <div class="stats">
+          <div class="stat-item">
+            <div class="stat-value" id="bayDisplay">1</div>
+            <div class="stat-label">Current Bay</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="totalScanned">0</div>
+            <div class="stat-label">Total Scanned</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="emptySlots">0</div>
+            <div class="stat-label">Empty Slots</div>
+          </div>
+        </div>
       </div>
 
-      <button onclick="completeScanning()" style="margin-top:10px;">Complete Scanning & Export</button>
-      <button onclick="resetAll()" style="background-color: red; color: white; margin-top:10px;">Reset All</button>
+      <label>Scan/Enter VIN:</label>
+      <input 
+        type="text" 
+        id="vin" 
+        class="scan-input" 
+        placeholder="Scan barcode or type VIN manually"
+        oninput="handleVinInput()"
+      />
+      
+      <div id="messageArea"></div>
+
+      <button onclick="addEmptySlot()" class="btn-info">Mark Empty Slot</button>
+      <button onclick="nextRow()" class="btn-warning">Next Row</button>
+      <button onclick="completeScanning()" class="btn-success">Complete & Export CSV</button>
+      <button onclick="resetAll()" class="btn-danger">Reset Everything</button>
     </div>
   </div>
+
+  <!-- Individual VIN Parking Section -->
+  <div id="individualVinSection" class="container hidden">
+    <h3>Individual VIN Assignment</h3>
+    
+    <label>Yard:</label>
+    <input type="text" id="indYard" placeholder="Yard name" />
+    
+    <label>Bay:</label>
+    <input type="text" id="indBay" placeholder="Bay number/name" />
+    
+    <label>Slot:</label>
+    <input type="text" id="indSlot" placeholder="Slot number" />
+    
+    <label>VIN:</label>
+    <input type="text" id="indVin" placeholder="Vehicle VIN" />
+    
+    <div id="indMessageArea"></div>
+    
+    <button onclick="submitIndividualVin()" class="btn-success">Add VIN Record</button>
+    <button onclick="completeScanning()" class="btn-info">Export Current Data</button>
+    <button onclick="resetAll()" class="btn-danger">Reset Everything</button>
+  </div>
+
+  <!-- Statistics Display -->
+  <div id="statsSection" class="container hidden">
+    <div class="stats">
+      <div class="stat-item">
+        <div class="stat-value" id="totalRecords">0</div>
+        <div class="stat-label">Total Records</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="vinRecords">0</div>
+        <div class="stat-label">VIN Records</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="emptyRecords">0</div>
+        <div class="stat-label">Empty Records</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIN Records Table -->
+  <table id="vinTable" class="hidden">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Yard</th>
+        <th>Sub Yard</th>
+        <th>Row</th>
+        <th>Bay</th>
+        <th>Slot</th>
+        <th>VIN</th>
+        <th>Time</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
 </div>
 
-<!-- Individual VIN Parking Section -->
-<div id="individualVinSection" style="display:none; margin-top: 20px;">
-  <label>Yard:</label>
-  <input type="text" id="indYard" autocomplete="off" />
-  <label>Bay:</label>
-  <input type="text" id="indBay" autocomplete="off" />
-  <label>Slot:</label>
-  <input type="text" id="indSlot" autocomplete="off" />
-  <label>VIN:</label>
-  <input type="text" id="indVin" autocomplete="off" />
-  <button onclick="submitIndividualVin()" style="margin-top:10px;">Submit VIN</button>
-  <button onclick="completeScanning()" style="margin-top:10px;">Export Data</button>
-  <button onclick="resetAll()" style="background-color: red; color: white; margin-top:10px;">Reset All</button>
-</div>
-
-<!-- VIN Table -->
-<table id="vinTable" style="display:none;">
-  <thead>
-    <tr>
-      <th>#</th>
-      <th>Yard</th>
-      <th>Sub Yard</th>
-      <th>Row</th>
-      <th>Bay</th>
-      <th>Slot</th>
-      <th>VIN</th>
-      <th>Time</th>
-      <th>Delete</th>
-    </tr>
-  </thead>
-  <tbody id="tableBody"></tbody>
-</table>
-
-<script>
-  let mode = "";
-  let yardName = "";
-  let subYardName = "";
-  let rowName = "";
-  let bayCount = 1;
-  let slotCount = 1;
-  let vinCount = 1;
-  let records = [];
-
-  const yardInput = document.getElementById('yard');
-  const subYardInput = document.getElementById('subYard');
-  const rowInput = document.getElementById('row');
-  const vinInput = document.getElementById('vin');
-  const bayDisplay = document.getElementById('bayDisplay');
-  const tableBody = document.getElementById('tableBody');
-
-  document.getElementById("modeSelect").addEventListener("change", handleModeChange);
-
-  function handleModeChange() {
-    mode = document.getElementById("modeSelect").value;
-    resetAll(false);
-    document.getElementById("yardMappingSection").style.display = mode === "yard" ? "block" : "none";
-    document.getElementById("individualVinSection").style.display = mode === "individual" ? "block" : "none";
-    if (mode) {
-      document.getElementById("modeSelect").disabled = true;
-    }
-  }
-
-  window.startScanning = function () {
-    yardName = yardInput.value.trim();
-    subYardName = subYardInput.value.trim();
-    rowName = rowInput.value.trim();
-
-    if (!yardName || !subYardName || !rowName) {
-      alert("Please enter Yard, Sub Yard and Row.");
-      return;
-    }
-
-    yardInput.disabled = true;
-    subYardInput.disabled = true;
-    rowInput.disabled = true;
-
-    bayCount = 1;
-    slotCount = 1;
-    bayDisplay.innerText = bayCount;
-
-    document.getElementById('scanSection').style.display = 'block';
-    document.getElementById('vinInputSection').style.display = 'block';
-    document.getElementById('vinTable').style.display = 'table';
-    vinInput.focus();
-  }
-
-  vinInput.addEventListener("input", function () {
-    if (vinInput._timeout) clearTimeout(vinInput._timeout);
-    vinInput._timeout = setTimeout(() => {
-      const vin = vinInput.value.trim();
-      if (vin !== "") {
-        addVinRecord(vin);
-        vinInput.value = "";
-      }
-    }, 150);
-  });
-
-  function addVinRecord(vin) {
-    const now = new Date();
-    const timestamp = now.toLocaleString();
-
-    const record = {
-      id: vinCount,
-      yard: yardName,
-      subYard: subYardName,
-      row: rowName,
-      bay: bayCount,
-      slot: slotCount,
-      vin,
-      time: timestamp
-    };
-
-    records.push(record);
-    rebuildTable();
-    vinCount++;
-    slotCount++;
-    bayCount++;
-    bayDisplay.innerText = bayCount;
-    vinInput.focus();
-  }
-
-  window.addEmptySlot = function () {
-    const now = new Date();
-    const timestamp = now.toLocaleString();
-
-    const record = {
-      id: vinCount,
-      yard: yardName,
-      subYard: subYardName,
-      row: rowName,
-      bay: bayCount,
-      slot: slotCount,
-      vin: "(Empty)",
-      time: timestamp
-    };
-
-    records.push(record);
-    rebuildTable();
-    vinCount++;
-    slotCount++;
-    bayCount++;
-    bayDisplay.innerText = bayCount;
-    vinInput.focus();
-  }
-
-  function rebuildTable() {
-    tableBody.innerHTML = "";
-    records.forEach((r, i) => {
-      const row = document.createElement("tr");
-      const deleteBtn = (i === records.length - 1) ?
-        `<button class="delete-btn" onclick="deleteRecord(${r.id})">Delete</button>` : "";
-      row.innerHTML = `
-        <td>${r.id}</td>
-        <td>${r.yard}</td>
-        <td>${r.subYard}</td>
-        <td>${r.row}</td>
-        <td>${r.bay}</td>
-        <td>${r.slot}</td>
-        <td>${r.vin}</td>
-        <td>${r.time}</td>
-        <td>${deleteBtn}</td>
-      `;
-      tableBody.appendChild(row);
-    });
-    document.getElementById('vinTable').style.display = records.length > 0 ? "table" : "none";
-  }
-  window.deleteRecord = function (id) {
-    if (records.length === 0) return;
-
-    const lastRecord = records[records.length - 1];
-    if (lastRecord.id !== id) return; // Only allow deleting the last record
-
-    records.pop();
-    vinCount--;
-    slotCount--;
-    bayCount--;
-    bayDisplay.innerText = bayCount;
-
-    rebuildTable();
-    vinInput.focus();
-  }
-
-  window.completeScanning = function () {
-    if (records.length === 0) {
-      alert("No data to export.");
-      return;
-    }
-
-    let csv = "S.No,Yard,Sub Yard,Row,Bay,Slot,VIN,Time\n";
-    for (let r of records) {
-      const vinSafe = r.vin.includes(",") ? `"${r.vin}"` : r.vin;
-      csv += `${r.id},${r.yard},${r.subYard},${r.row},${r.bay},${r.slot},${vinSafe},${r.time}\n`;
-    }
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const fileName = "VIN_Export_" + new Date().toISOString().slice(0, 10) + ".csv";
-
-    if (navigator.msSaveBlob) {
-      navigator.msSaveBlob(blob, fileName);
-    } else {
-      const url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute("download", fileName);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-
-    alert("CSV exported successfully.");
-  }
-
-  window.resetAll = function (showAlert = true) {
-    mode = "";
-    yardName = "";
-    subYardName = "";
-    rowName = "";
-    bayCount = 1;
-    slotCount = 1;
-    vinCount = 1;
-    records = [];
-
-    yardInput.value = "";
-    subYardInput.value = "";
-    rowInput.value = "";
-    vinInput.value = "";
-
-    yardInput.disabled = false;
-    subYardInput.disabled = false;
-    rowInput.disabled = false;
-
-    document.getElementById("indYard").value = "";
-    document.getElementById("indBay").value = "";
-    document.getElementById("indSlot").value = "";
-    document.getElementById("indVin").value = "";
-
-    document.getElementById('scanSection').style.display = 'none';
-    document.getElementById('vinInputSection').style.display = 'none';
-    document.getElementById('vinTable').style.display = 'none';
-    document.getElementById('yardMappingSection').style.display = 'none';
-    document.getElementById('individualVinSection').style.display = 'none';
-    document.getElementById("modeSelect").disabled = false;
-    document.getElementById("modeSelect").value = "";
-    tableBody.innerHTML = "";
-    bayDisplay.innerText = "1";
-
-    if (showAlert) {
-      alert("Reset complete. Ready to start again.");
-    }
-  }
-
-  window.submitIndividualVin = function () {
-    const yard = document.getElementById("indYard").value.trim();
-    const bay = document.getElementById("indBay").value.trim();
-    const slot = document.getElementById("indSlot").value.trim();
-    const vin = document.getElementById("indVin").value.trim();
-
-    if (!yard || !bay || !slot || !vin) {
-      alert("Please fill all fields.");
-      return;
-    }
-
-    const now = new Date();
-    const timestamp = now.toLocaleString();
-
-    const record = {
-      id: records.length + 1,
-      yard: yard,
-      subYard: "-",
-      row: "-",
-      bay: bay,
-      slot: slot,
-      vin: vin,
-      time: timestamp
-    };
-
-    records.push(record);
-    rebuildTable();
-
-    document.getElementById("indYard").value = "";
-    document.getElementById("indBay").value = "";
-    document.getElementById("indSlot").value = "";
-    document.getElementById("indVin").value = "";
-    document.getElementById("indYard").focus();
-  }
-</script>
 </body>
 </html>
