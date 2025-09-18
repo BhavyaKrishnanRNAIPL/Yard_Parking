@@ -200,6 +200,40 @@
       background: #3498db;
       color: white;
     }
+    @media only screen and (max-width: 600px) {
+  input, button, select {
+    font-size: 14px;
+    padding: 8px;
+  }
+
+  .direction-btn {
+    width: 100%;
+    margin: 5px 0;
+  }
+
+  table, thead, tbody, th, td, tr {
+    font-size: 10px;
+  }
+
+  .stat-item {
+    padding: 5px;
+    margin: 3px 0;
+  }
+
+  .container {
+    padding: 10px;
+  }
+
+  .scan-input {
+    font-size: 16px;
+  }
+
+  .btn-info, .btn-danger {
+    width: 100%;
+    margin: 5px 0;
+  }
+}
+
   </style>
 
   <script>
@@ -217,28 +251,6 @@
     };
 
     var vinInputTimeout;
-
-    // Predefined sub yards list - can be customized
-    var predefinedSubYards = [
-      "H1", "H2", "H3", "H4", "H5",
-      "A1", "A2", "A3", "A4", "A5", 
-      "B1", "B2", "B3", "B4", "B5",
-      "C1", "C2", "C3", "C4", "C5"
-    ];
-
-    // Initialize sub yards dropdown
-    function initializeSubYards() {
-      var subYardSelect = document.getElementById('subYard');
-      subYardSelect.innerHTML = '<option value="">-- Select Sub Yard --</option>';
-      
-      for (var i = 0; i < predefinedSubYards.length; i++) {
-        var option = document.createElement('option');
-        option.value = predefinedSubYards[i];
-        option.text = predefinedSubYards[i];
-        subYardSelect.appendChild(option);
-      }
-    }
-
     // Handle VIN input with timeout
     function handleVinInput() {
       var vinInput = document.getElementById('vin');
@@ -850,9 +862,7 @@
     <input type="text" id="yard" placeholder="e.g., H" />
     
     <label>Sub Yard:</label>
-    <select id="subYard">
-      <option value="">-- Select Sub Yard --</option>
-    </select>
+    <input type="text" id="subYard" placeholder="e.g., H2" />
     
     <label>Row Name:</label>
     <input type="text" id="row" placeholder="e.g., 1" />
@@ -870,6 +880,10 @@
       <div style="margin-top: 10px;">
         <button type="button" id="scanForwardBtn" class="direction-btn" onclick="switchDirection('F')">F (Forward)</button>
         <button type="button" id="scanReverseBtn" class="direction-btn" onclick="switchDirection('R')">R (Reverse)</button>
+      </div>
+      <div style="margin-top: 15px;">
+        <button onclick="completeScanning()" class="btn-info">Export as CSV</button>
+        <button onclick="resetAll()" class="btn-danger">Reset All</button>
       </div>
     </div>
 
@@ -896,8 +910,6 @@
       <div style="margin-top: 10px;">
         <button onclick="addEmptySlot()" class="btn-warning">Mark Empty Slot</button>
         <button onclick="nextRow()" class="btn-info">Complete Current Row</button>
-        <button onclick="completeScanning()" class="btn-success">Export as CSV</button>
-        <button onclick="resetAll()" class="btn-danger">Reset All</button>
       </div>
     </div>
   </div>
