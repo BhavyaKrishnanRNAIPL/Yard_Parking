@@ -898,7 +898,8 @@
 
     // Sync to GitHub
     function syncToGitHub() {
-      var token = document.getElementById('patToken').value.trim();
+      var token = document.getElementById('patToken').value;
+      var token = rawToken.replace(/\s+/g, '').trim();
       var statusDiv = document.getElementById('syncStatus');
       
       if (!token) {
