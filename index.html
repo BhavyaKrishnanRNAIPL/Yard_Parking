@@ -566,24 +566,38 @@
       return 'Scanner-' + appState.deviceId.substring(7).toUpperCase();
     }
 
-    // Handle VIN input
+    // Handle VIN input with immediate processing
     function handleVinInput() {
       var vinInput = document.getElementById('vin');
-      if (vinInputTimeout) clearTimeout(vinInputTimeout);
+      var inputValue = vinInput.value.trim().toUpperCase();
       
-      vinInputTimeout = setTimeout(function() {
-        var inputValue = vinInput.value.trim().toUpperCase();
-        if (inputValue !== "") {
-          var extractedVin = extractVIN(inputValue);
-          if (extractedVin && validateVIN(extractedVin)) {
-            addVinRecord(extractedVin);
-            vinInput.value = "";
-            showMessage("✓ VIN " + extractedVin + " added", "success");
-          } else if (inputValue !== "") {
-            showMessage("❌ Invalid VIN format", "error");
-          }
+      if (inputValue.length >= 17) {
+        // Clear any existing timeout
+        if (vinInputTimeout) clearTimeout(vinInputTimeout);
+        
+        var extractedVin = extractVIN(inputValue);
+        if (extractedVin && validateVIN(extractedVin)) {
+          addVinRecord(extractedVin);
+          vinInput.value = ""; // Clear immediately
+          showMessage("✓ VIN " + extractedVin + " added", "success");
+        } else {
+          // If 17+ characters but not valid, clear and show error
+          vinInput.value = "";
+          showMessage("❌ Invalid VIN format", "error");
         }
-      }, 300);
+      } else if (inputValue.length > 17) {
+        // If somehow more than 17 chars, try to extract
+        var extractedVin = extractVIN(inputValue);
+        if (extractedVin && validateVIN(extractedVin)) {
+          addVinRecord(extractedVin);
+          vinInput.value = "";
+          showMessage("✓ VIN " + extractedVin + " added", "success");
+        } else {
+          vinInput.value = "";
+          showMessage("❌ Could not extract valid VIN", "error");
+        }
+      }
+      // If less than 17 characters, keep typing (no action needed)
     }
 
     // Extract VIN from input
@@ -1022,7 +1036,7 @@
       return rows;
     }
 
-    // Export local CSV
+    // Export local CSV with simple download
     function exportLocalCSV() {
       if (appState.records.length === 0) {
         showMessage("❌ No data to export", "error");
@@ -1038,25 +1052,52 @@
                record.direction + ',' + record.deviceId + '\n';
       }
 
+      // Create and download the file
+      var fileName = "VIN_Export_" + getUserFriendlyDeviceName() + "_" + Date.now() + ".csv";
+      
       try {
+        // Create blob and download
         var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-        var link = document.createElement("a");
-        var fileName = "VIN_Export_" + getUserFriendlyDeviceName() + "_" + Date.now() + ".csv";
-
-        if (window.URL && window.URL.createObjectURL) {
-          var url = window.URL.createObjectURL(blob);
-          link.setAttribute("href", url);
-          link.setAttribute("download", fileName);
-          link.style.visibility = "hidden";
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
+        
+        // For modern browsers
+        if (navigator.msSaveBlob) {
+          // IE 10+
+          navigator.msSaveBlob(blob, fileName);
+          showMessage("📁 CSV exported successfully!", "success");
+        } else {
+          // Other browsers
+          var link = document.createElement("a");
+          if (link.download !== undefined) {
+            // Feature detection for download attribute
+            var url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", fileName);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            showMessage("📁 CSV exported successfully!", "success");
+          } else {
+            // Fallback for very old browsers
+            window.open('data:text/csv;charset=utf-8,' + encodeURIComponent(csv));
+            showMessage("📁 CSV data opened in new window", "success");
+          }
         }
-
-        showMessage("📁 CSV exported locally!", "success");
       } catch (e) {
-        showMessage("❌ Export failed", "error");
+        // Final fallback - copy to clipboard or show data
+        showMessage("❌ Download failed. Trying alternative method...", "error");
+        try {
+          if (navigator.clipboard) {
+            navigator.clipboard.writeText(csv);
+            showMessage("📋 CSV data copied to clipboard!", "success");
+          } else {
+            // Show data in alert as last resort
+            alert("CSV Export Data (copy this):\n\n" + csv.substring(0, 500) + "...");
+          }
+        } catch (clipError) {
+          alert("Export failed. Please try again or contact support.");
+        }
       }
     }
 
